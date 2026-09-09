@@ -292,6 +292,7 @@ def ballistics(weapon: dict[str, str]) -> dict:
         "adsSpread": f("adsSpread"),
         "hipKick": kick("hip"),
         "adsKick": kick("ads"),
+        "adsZoomFov": f("adsZoomFov1", 55),
         "adsTransInTime": f("adsTransInTime", 0.25),
         "adsTransOutTime": f("adsTransOutTime", 0.25),
         "sprintOutTime": f("sprintOutTime", 0.2),

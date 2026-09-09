@@ -4,6 +4,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { chromium } from 'playwright-core';
 import { runMobileStartup, runMobileTest } from './mobile-game.mjs';
+import { runAdsTest } from './ads-game.mjs';
 import { runSniperTest } from './sniper-game.mjs';
 import { runGraphicsTest } from './graphics-game.mjs';
 
@@ -51,10 +52,11 @@ Usage:
   npm run ai:game -- test
   npm run ai:game -- enemy-test
   npm run ai:game -- life-test
+  npm run ai:game -- ads-test
   npm run ai:game -- sniper-test
   npm run ai:game -- mobile-test
   npm run ai:game -- graphics-test [fallback]
-  npm run ai:game -- record [seconds] [weapon|sprint]
+  npm run ai:game -- record [seconds] [weapon|sprint|ads]
 
 Environment:
   AI_GAME_HEADED=1             Show the controlled browser window
@@ -145,7 +147,7 @@ async function run() {
     process.stdout.write(usage());
     return;
   }
-  if (!['state', 'screenshot', 'test', 'enemy-test', 'life-test', 'mobile-test', 'graphics-test', 'sniper-test', 'record'].includes(command)) {
+  if (!['state', 'screenshot', 'test', 'enemy-test', 'life-test', 'mobile-test', 'graphics-test', 'sniper-test', 'ads-test', 'record'].includes(command)) {
     throw new Error(`Unknown command: ${command}\n\n${usage()}`);
   }
 
@@ -253,7 +255,9 @@ async function run() {
     await writeJson('before-state.json', before);
     await page.screenshot({ path: path.join(artifactRoot, 'before.png') });
 
-    if (command === 'sniper-test') {
+    if (command === 'ads-test') {
+      inputProbe = await runAdsTest(page, artifactRoot);
+    } else if (command === 'sniper-test') {
       inputProbe = await runSniperTest(page, artifactRoot);
     } else if (command === 'mobile-test') {
       inputProbe = await runMobileTest(page, artifactRoot);
@@ -352,6 +356,10 @@ async function run() {
         { timeout: 20_000 },
       );
       await page.evaluate(() => globalThis.hijacked.debug.pause());
+    } else if (command === 'record' && commandOption === 'ads') {
+      const started = Date.now();
+      inputProbe = await runAdsTest(page, artifactRoot, { weaponIds: ['m27', 'fiveseven'] });
+      await page.waitForTimeout(Math.max(0, recordSeconds * 1000 - (Date.now() - started)));
     } else if (command === 'record') {
       const sprintProbe = commandOption === 'sprint';
       const recordWeapon = sprintProbe ? 'scar' : commandOption;
@@ -404,7 +412,7 @@ async function run() {
     await writeJson('state.json', state);
     await page.screenshot({ path: path.join(artifactRoot, 'screenshot.png') });
 
-    const checks = ['mobile-test', 'graphics-test', 'sniper-test'].includes(command) ? {
+    const checks = ['mobile-test', 'graphics-test', 'sniper-test', 'ads-test'].includes(command) ? {
       ...startupChecks,
       ...inputProbe.checks,
       noBrowserErrors: errors.length === 0,

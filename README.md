@@ -761,11 +761,13 @@ npm run ai:enemy
 npm run ai:life
 npm run ai:mobile
 npm run ai:sniper
+npm run ai:ads
 npm run ai:rigs
 npm run ai:graphics
 npm run ai:graphics -- fallback
 npm run ai:record -- 10
 npm run ai:record -- 10 sprint
+npm run ai:record -- 10 ads
 ```
 
 Outputs are written to `artifacts/ai-game/`:
@@ -783,6 +785,8 @@ Outputs are written to `artifacts/ai-game/`:
 `ai:rigs` renders all 17 weapon rigs at fixed hip, ADS, normal-reload and empty-reload poses. It checks sight projection, physical scopes and magazine seating, and saves screenshots and state to `artifacts/weapon-rigs`. Set `RIG_MOTION=1` to check sprinting with downward and diagonal look lag. Set `RIG_WEAPONS=m27,an94` to narrow the roster and `BROWSER_PATH` to choose Chrome or Edge.
 
 `ai:sniper` checks all four rifles with real aim, fire and hold-breath input, including scope/bolt transitions and pause/respawn recovery. Set `AI_GAME_MOBILE=1` to exercise touch input and the portrait scope masks.
+
+`ai:ads` checks world zoom on all 17 weapons, rifle/pistol look sensitivity, and zoom recovery after lowering, switching, pausing and respawning. It saves per-weapon screenshots, `ads-states.json` and frame-by-frame `ads-transitions.json`. `ai:record -- 10 ads` records the rifle/pistol sequence; set `AI_GAME_MOBILE=1` to test it with touch gestures.
 
 `ai:mobile` writes to `artifacts/ai-mobile/`. It tests simultaneous touch
 contacts, action buttons, interruption recovery, class selection, and match

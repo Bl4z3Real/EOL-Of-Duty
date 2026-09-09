@@ -14,6 +14,7 @@
     "ai:enemy": "node .tools/ai-game.mjs enemy-test",
     "ai:life": "node .tools/ai-game.mjs life-test",
     "ai:rigs": "node .tools/weapon-rig-audit.mjs",
+    "ai:ads": "node .tools/ai-game.mjs ads-test",
     "ai:sniper": "node .tools/ai-game.mjs sniper-test",
     "ai:mobile": "node .tools/ai-game.mjs mobile-test",
     "ai:graphics": "node .tools/ai-game.mjs graphics-test",

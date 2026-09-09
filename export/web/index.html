@@ -714,6 +714,7 @@ import { MAPS, MAP_IDS, mapFiles, resolveMapId, rememberMap, hideMapNodes } from
 import {
   SpreadModel, ViewKick, SprintGate, damageAtDistance, locationMultiplier, selectMeleeTarget,
   LONGSHOT_DISTANCE, metresFromUnits,
+  adsFieldOfView, zoomLookScale,
 } from './gunplay.js';
 import { WEAPON_BALLISTICS } from './weapon-ballistics.js';
 import { AmbienceManager, MusicPlayer, StrideTracker, SurfaceProbe, WorldAudio } from './world-audio.js';
@@ -1353,7 +1354,7 @@ const touchControls = new TouchControls({
   onLook: (x, y, sensitivity) => {
     if (!canControlPlayer()) return;
     // CSS pixels make the same thumb gesture independent of device DPI.
-    applyLook(x, y, 0.005 * sensitivity * (activeWeaponSlot.definition.scope ? camera.fov / SCOPE.hipFov : (viewmodel.aiming ? 0.5 : 1)));
+    applyLook(x, y, 0.005 * sensitivity);
   },
   onAction: (action, phase) => {
     if (action === 'frag' && phase === 'cancel') { cancelHeldGrenade(); return; }
@@ -1450,6 +1451,7 @@ function canControlPlayer() {
 }
 
 function applyLook(x, y, sensitivity = 0.0022) {
+  sensitivity *= zoomLookScale(camera.fov, SCOPE.hipFov);
   yawPitch.setFromQuaternion(camera.quaternion);
   yawPitch.y -= x * sensitivity;
   yawPitch.x = THREE.MathUtils.clamp(yawPitch.x - y * sensitivity, -Math.PI / 2, Math.PI / 2);
@@ -1679,7 +1681,9 @@ function selectWeapon(id) {
   viewmodelProbe.removeFromParent();
   viewmodel.scene.add(viewmodelProbe);
   viewmodel.scene.visible = !playerHealth?.dead;
-  viewmodel.setAiming(false);
+  viewmodel.resetAiming();
+  scopeState.fov = camera.fov = SCOPE.hipFov;
+  camera.updateProjectionMatrix();
   crosshair.classList.remove('ads');
   lastAdsState = false;
   // Holster the outgoing gun, then bring the new one up; pistols come up fast.
@@ -2007,12 +2011,11 @@ function setScoped(scoped, definition) {
   if (scoped) worldAudio?.play(SCOPE.zoomSound, { gain: 0.6 });
 }
 
-// World zoom and glass sway for a scoped weapon. Returns the sway to add to
-// the view this frame, in radians, and keeps the camera's FOV in step with
-// the raise so the world zooms as the sight comes up.
+// Every weapon zooms the world with its raise. Scoped weapons also add
+// glass sway, returned in radians for this frame.
 function updateScope(dt, { holdBreath = false, active = true } = {}) {
   const scope = activeWeaponSlot.definition.scope ?? null;
-  const target = scope ? SCOPE.hipFov + (scope.zoomFov - SCOPE.hipFov) * viewmodel.aimBlend : SCOPE.hipFov;
+  const target = adsFieldOfView(SCOPE.hipFov, scope?.zoomFov ?? gunplay.ballistics.adsZoomFov ?? viewmodel.adsFov, viewmodel.aimBlend);
   if (target !== scopeState.fov) {
     scopeState.fov = target;
     camera.fov = target;
@@ -2291,6 +2294,9 @@ function getDebugState() {
       rechambering: viewmodel.rechambering,
       pendingRechamber: viewmodel.pendingRechamber,
       fov: debugRound(camera.fov),
+      aimBlend: debugRound(viewmodel.aimBlend),
+      adsZoomFov: gunplay.ballistics.adsZoomFov,
+      lookSensitivityScale: debugRound(zoomLookScale(camera.fov, SCOPE.hipFov)),
       breathHeld: scopeState.holding,
     },
     loadout: { ...loadout },
@@ -2521,7 +2527,7 @@ document.addEventListener('pointerlockchange', () => {
 
 document.addEventListener('mousemove', (event) => {
   if (!canControlPlayer() || event.sourceCapabilities?.firesTouchEvents) return;
-  applyLook(event.movementX, event.movementY, 0.0022 * (camera.fov / SCOPE.hipFov));
+  applyLook(event.movementX, event.movementY);
 });
 
 document.addEventListener('mousedown', (event) => {
@@ -3006,15 +3012,16 @@ function tick() {
       const recentre = gunplay.kick.update(dt);
       nudgeView(recentre.pitch, recentre.yaw);
     }
-    const sway = updateScope(dt, { holdBreath: Boolean(keys.ShiftLeft || keys.ShiftRight || touch.breath), active: controlsActive });
-    nudgeView(sway.pitch, sway.yaw);
-
     viewmodel.update(simulationActive ? dt : 0, {
       speed,
       grounded: player.isGrounded,
       sprinting,
       moving,
     });
+    // Update the world lens after the weapon blend, so both render the same frame.
+    const sway = updateScope(dt, { holdBreath: Boolean(keys.ShiftLeft || keys.ShiftRight || touch.breath), active: controlsActive });
+    nudgeView(sway.pitch, sway.yaw);
+
     viewBob.update(dt, {
       speed,
       grounded: player.isGrounded,

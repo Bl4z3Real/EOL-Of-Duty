@@ -19,6 +19,16 @@ export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+/** World zoom follows the same eased ADS blend as the weapon raise. */
+export function adsFieldOfView(hipFov, adsFov, aimBlend) {
+  return hipFov + (adsFov - hipFov) * clamp(aimBlend, 0, 1);
+}
+
+/** Preserve small aiming corrections in screen space as the lens zooms. */
+export function zoomLookScale(fov, hipFov) {
+  return Math.tan(fov * DEG / 2) / Math.tan(hipFov * DEG / 2);
+}
+
 /**
  * Stepwise range falloff, as the engine applies it: full damage out to
  * maxDamageRange, then each damageRangeN opens the next band, then minDamage

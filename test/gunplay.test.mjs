@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import {
-  AdsBlend, BODY_PENETRATION_SCALE, PENETRATION_BUDGET, SURFACE_PENETRATION_SCALE, SpreadModel, SprintGate,
+  adsFieldOfView, zoomLookScale, AdsBlend, BODY_PENETRATION_SCALE, PENETRATION_BUDGET, SURFACE_PENETRATION_SCALE, SpreadModel, SprintGate,
   VIEW_KICK_RADIANS, ViewKick, damageAtDistance, locationMultiplier, passSurface, penetrationClass,
 } from '../export/web/gunplay.js';
 import { WEAPON_BALLISTICS } from '../export/web/weapon-ballistics.js';
@@ -152,4 +152,34 @@ test('penetration: glass and fences are free, thin cover spends budget, walls st
   // A rifle with no penetration stops at the first thin surface.
   assert.equal(passSurface('wood', 'crate', PENETRATION_BUDGET.none), null);
   assert.ok(BODY_PENETRATION_SCALE > 0.5 && BODY_PENETRATION_SCALE < 1);
+});
+
+test('every weapon has the authored world ADS zoom', () => {
+  for (const [id, b] of Object.entries(WEAPON_BALLISTICS)) {
+    const expected = ['fiveseven', 'fnp45', 'kard', 'beretta93r'].includes(id) ? 60
+      : ['dsr50', 'ballista', 'as50'].includes(id) ? 15 : id === 'svu' ? 20 : 50;
+    assert.equal(b.adsZoomFov, expected, id);
+  }
+});
+
+test('world zoom follows interrupted ADS raises and returns to hip', () => {
+  const blend = new AdsBlend(m27);
+  blend.update(0.125, true);
+  assert.equal(adsFieldOfView(75, m27.adsZoomFov, blend.value), 62.5);
+  blend.update(0.05, false);
+  const reversing = adsFieldOfView(75, m27.adsZoomFov, blend.value);
+  assert.ok(reversing > 62.5 && reversing < 75);
+  blend.update(1, false);
+  assert.equal(adsFieldOfView(75, m27.adsZoomFov, blend.value), 75);
+});
+
+test('zoom sensitivity preserves small on-screen corrections through every zoom level', () => {
+  const hipFov = 75, movement = 0.001;
+  const projection = fov => 1 / Math.tan(fov * Math.PI / 360);
+  const hipPixels = Math.tan(movement) * projection(hipFov);
+  for (const fov of [75, 70, 60, 55, 50, 20, 15]) {
+    const aimedPixels = Math.tan(movement * zoomLookScale(fov, hipFov)) * projection(fov);
+    assert.ok(Math.abs(aimedPixels / hipPixels - 1) < 1e-6, `${fov}: correction changed apparent speed`);
+  }
+  assert.equal(zoomLookScale(75, 75), 1);
 });

@@ -13,6 +13,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.0,
     "adsTransInTime": 0.25,
     "adsTransOutTime": 0.25,
+    "adsZoomFov": 50.0,
     "damage": 40.0,
     "hipKick": {
       "centerSpeed": 1500.0,
@@ -69,6 +70,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.0,
     "adsTransInTime": 0.4,
     "adsTransOutTime": 0.6,
+    "adsZoomFov": 15.0,
     "damage": 95.0,
     "hipKick": {
       "centerSpeed": 1000.0,
@@ -117,6 +119,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.0,
     "adsTransInTime": 0.35,
     "adsTransOutTime": 0.4,
+    "adsZoomFov": 15.0,
     "damage": 95.0,
     "hipKick": {
       "centerSpeed": 500.0,
@@ -165,6 +168,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.0,
     "adsTransInTime": 0.125,
     "adsTransOutTime": 0.125,
+    "adsZoomFov": 60.0,
     "damage": 45.0,
     "hipKick": {
       "centerSpeed": 1100.0,
@@ -229,6 +233,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.0,
     "adsTransInTime": 0.4,
     "adsTransOutTime": 0.5,
+    "adsZoomFov": 15.0,
     "damage": 98.0,
     "hipKick": {
       "centerSpeed": 500.0,
@@ -277,6 +282,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.1,
     "adsTransInTime": 0.125,
     "adsTransOutTime": 0.125,
+    "adsZoomFov": 60.0,
     "damage": 55.0,
     "hipKick": {
       "centerSpeed": 1100.0,
@@ -341,6 +347,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.3,
     "adsTransInTime": 0.125,
     "adsTransOutTime": 0.125,
+    "adsZoomFov": 60.0,
     "damage": 55.0,
     "hipKick": {
       "centerSpeed": 1100.0,
@@ -405,6 +412,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.3,
     "adsTransInTime": 0.1,
     "adsTransOutTime": 0.1,
+    "adsZoomFov": 60.0,
     "damage": 45.0,
     "hipKick": {
       "centerSpeed": 1500.0,
@@ -469,6 +477,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.0,
     "adsTransInTime": 0.25,
     "adsTransOutTime": 0.25,
+    "adsZoomFov": 50.0,
     "damage": 33.0,
     "hipKick": {
       "centerSpeed": 1550.0,
@@ -525,6 +534,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.0,
     "adsTransInTime": 0.25,
     "adsTransOutTime": 0.25,
+    "adsZoomFov": 50.0,
     "damage": 55.0,
     "hipKick": {
       "centerSpeed": 1550.0,
@@ -581,6 +591,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.0,
     "adsTransInTime": 0.275,
     "adsTransOutTime": 0.275,
+    "adsZoomFov": 50.0,
     "damage": 50.0,
     "hipKick": {
       "centerSpeed": 1250.0,
@@ -645,6 +656,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.0,
     "adsTransInTime": 0.25,
     "adsTransOutTime": 0.25,
+    "adsZoomFov": 50.0,
     "damage": 40.0,
     "hipKick": {
       "centerSpeed": 1500.0,
@@ -701,6 +713,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.0,
     "adsTransInTime": 0.25,
     "adsTransOutTime": 0.25,
+    "adsZoomFov": 50.0,
     "damage": 40.0,
     "hipKick": {
       "centerSpeed": 1600.0,
@@ -757,6 +770,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.0,
     "adsTransInTime": 0.4,
     "adsTransOutTime": 0.4,
+    "adsZoomFov": 20.0,
     "damage": 70.0,
     "hipKick": {
       "centerSpeed": 1000.0,
@@ -805,6 +819,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.0,
     "adsTransInTime": 0.25,
     "adsTransOutTime": 0.25,
+    "adsZoomFov": 50.0,
     "damage": 40.0,
     "hipKick": {
       "centerSpeed": 1500.0,
@@ -861,6 +876,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.0,
     "adsTransInTime": 0.25,
     "adsTransOutTime": 0.25,
+    "adsZoomFov": 50.0,
     "damage": 33.0,
     "hipKick": {
       "centerSpeed": 1700.0,
@@ -917,6 +933,7 @@ export const WEAPON_BALLISTICS = Object.freeze({
     "adsSpread": 0.0,
     "adsTransInTime": 0.25,
     "adsTransOutTime": 0.25,
+    "adsZoomFov": 50.0,
     "damage": 35.0,
     "hipKick": {
       "centerSpeed": 2500.0,
