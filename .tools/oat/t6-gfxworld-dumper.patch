@@ -1,0 +1,200 @@
+diff --git a/src/ObjWriting/Game/T6/GfxWorld/GfxWorldDumperT6.cpp b/src/ObjWriting/Game/T6/GfxWorld/GfxWorldDumperT6.cpp
+new file mode 100644
+index 00000000..4d46fb5c
+--- /dev/null
++++ b/src/ObjWriting/Game/T6/GfxWorld/GfxWorldDumperT6.cpp
+@@ -0,0 +1,148 @@
++#include "GfxWorldDumperT6.h"
++
++#include <algorithm>
++#include <format>
++#include <nlohmann/json.hpp>
++#include <unordered_map>
++#include <vector>
++
++using namespace T6;
++using namespace nlohmann;
++
++namespace
++{
++    const char* ImageNameForSemantic(const Material* material, const unsigned semantic)
++    {
++        if (!material || !material->textureTable)
++            return "";
++        for (auto i = 0u; i < material->textureCount; i++)
++        {
++            const auto& def = material->textureTable[i];
++            if (def.semantic == semantic && def.image && def.image->name)
++                return def.image->name;
++        }
++        return "";
++    }
++
++    json Vec3(const vec3_t& v)
++    {
++        return json::array({v.x, v.y, v.z});
++    }
++
++    json Vec3(const float* v)
++    {
++        return json::array({v[0], v[1], v[2]});
++    }
++
++    void WriteBlob(const AssetDumpingContext& context, const std::string& fileName, const void* data, const size_t size)
++    {
++        const auto file = context.OpenAssetFile(fileName);
++        if (!file)
++            return;
++        if (data && size > 0)
++            file->write(static_cast<const char*>(data), static_cast<std::streamsize>(size));
++    }
++} // namespace
++
++namespace gfx_world
++{
++    void DumperT6::DumpAsset(AssetDumpingContext& context, const XAssetInfo<AssetGfxWorld::Type>& asset)
++    {
++        const auto* world = asset.Asset();
++        const auto& draw = world->draw;
++        const auto& dpvs = world->dpvs;
++
++        json root;
++        root["name"] = world->name ? world->name : "";
++        root["baseName"] = world->baseName ? world->baseName : "";
++        root["vertexCount"] = draw.vertexCount;
++        root["vertexDataSize0"] = draw.vertexDataSize0;
++        root["vertexDataSize1"] = draw.vertexDataSize1;
++        root["indexCount"] = draw.indexCount;
++        root["surfaceCount"] = world->surfaceCount;
++        root["staticSurfaceCount"] = dpvs.staticSurfaceCount;
++        root["minBounds"] = Vec3(world->mins);
++        root["maxBounds"] = Vec3(world->maxs);
++
++        std::vector<json> materials;
++        std::unordered_map<const Material*, size_t> materialIndex;
++        std::vector<json> surfaces;
++        const auto surfaceCount = dpvs.surfaces ? static_cast<size_t>(world->surfaceCount) : 0uz;
++        surfaces.reserve(surfaceCount);
++        for (auto i = 0uz; i < surfaceCount; i++)
++        {
++            const auto& surface = dpvs.surfaces[i];
++            const auto* material = surface.material;
++            auto found = materialIndex.find(material);
++            if (found == materialIndex.end())
++            {
++                found = materialIndex.emplace(material, materials.size()).first;
++                materials.push_back({
++                    {"name", material && material->info.name ? material->info.name : ""},
++                    {"colorMap", ImageNameForSemantic(material, TS_COLOR_MAP)},
++                    {"normalMap", ImageNameForSemantic(material, TS_NORMAL_MAP)},
++                    {"specularMap", ImageNameForSemantic(material, TS_SPECULAR_MAP)},
++                });
++            }
++            surfaces.push_back({
++                {"m", found->second},
++                {"fv", surface.tris.firstVertex},
++                {"vc", surface.tris.vertexCount},
++                {"tc", surface.tris.triCount},
++                {"bi", surface.tris.baseIndex},
++                {"o0", surface.tris.vertexDataOffset0},
++                {"o1", surface.tris.vertexDataOffset1},
++                {"lm", static_cast<int>(surface.lightmapIndex)},
++                {"fl", static_cast<int>(surface.flags)},
++                {"b0", Vec3(surface.bounds[0])},
++                {"b1", Vec3(surface.bounds[1])},
++            });
++        }
++        root["materials"] = materials;
++        root["surfaces"] = surfaces;
++
++        std::vector<json> staticModels;
++        const auto smodelCount = dpvs.smodelDrawInsts ? static_cast<size_t>(dpvs.smodelCount) : 0uz;
++        staticModels.reserve(smodelCount);
++        for (auto i = 0uz; i < smodelCount; i++)
++        {
++            const auto& inst = dpvs.smodelDrawInsts[i];
++            if (!inst.model || !inst.model->name)
++                continue;
++            staticModels.push_back({
++                {"model", inst.model->name},
++                {"origin", Vec3(inst.placement.origin)},
++                {"axis0", Vec3(inst.placement.axis[0])},
++                {"axis1", Vec3(inst.placement.axis[1])},
++                {"axis2", Vec3(inst.placement.axis[2])},
++                {"scale", inst.placement.scale},
++            });
++        }
++        root["staticModels"] = staticModels;
++
++        // Brush models (the entities' "*N" inline models) own the surfaces
++        // after the static world's; their table says which. Index 0 is the
++        // world itself.
++        std::vector<json> brushModels;
++        const auto modelCount = world->models ? static_cast<size_t>(std::max(world->modelCount, 0)) : 0uz;
++        brushModels.reserve(modelCount);
++        for (auto i = 0uz; i < modelCount; i++)
++        {
++            const auto& model = world->models[i];
++            brushModels.push_back({
++                {"start", model.startSurfIndex},
++                {"count", model.surfaceCount},
++                {"b0", Vec3(model.bounds[0])},
++                {"b1", Vec3(model.bounds[1])},
++            });
++        }
++        root["brushModels"] = brushModels;
++
++        const auto base = std::format("{}.gfxworld", asset.m_name);
++        if (const auto file = context.OpenAssetFile(base + ".json"))
++            *file << root.dump(1) << "\n";
++        WriteBlob(context, base + ".vd0", draw.vd0.data, draw.vertexDataSize0);
++        WriteBlob(context, base + ".vd1", draw.vd1.data, draw.vertexDataSize1);
++        WriteBlob(context, base + ".idx", draw.indices, static_cast<size_t>(draw.indexCount) * sizeof(uint16_t));
++    }
++} // namespace gfx_world
+diff --git a/src/ObjWriting/Game/T6/GfxWorld/GfxWorldDumperT6.h b/src/ObjWriting/Game/T6/GfxWorld/GfxWorldDumperT6.h
+new file mode 100644
+index 00000000..e04de41c
+--- /dev/null
++++ b/src/ObjWriting/Game/T6/GfxWorld/GfxWorldDumperT6.h
+@@ -0,0 +1,19 @@
++#pragma once
++
++#include "Dumping/AbstractAssetDumper.h"
++#include "Game/T6/T6.h"
++
++namespace gfx_world
++{
++    // Dumps the raw render world: a json index of surfaces, materials and
++    // static model placements next to the untouched vertex and index buffers.
++    //   maps/mp/<name>.d3dbsp.gfxworld.json
++    //   maps/mp/<name>.d3dbsp.gfxworld.vd0
++    //   maps/mp/<name>.d3dbsp.gfxworld.vd1
++    //   maps/mp/<name>.d3dbsp.gfxworld.idx
++    class DumperT6 final : public AbstractAssetDumper<T6::AssetGfxWorld>
++    {
++    protected:
++        void DumpAsset(AssetDumpingContext& context, const XAssetInfo<T6::AssetGfxWorld::Type>& asset) override;
++    };
++} // namespace gfx_world
+diff --git a/src/ObjWriting/Game/T6/ObjWriterT6.cpp b/src/ObjWriting/Game/T6/ObjWriterT6.cpp
+index 05a30c1f..d3440f15 100644
+--- a/src/ObjWriting/Game/T6/ObjWriterT6.cpp
++++ b/src/ObjWriting/Game/T6/ObjWriterT6.cpp
+@@ -1,6 +1,7 @@
+ #include "ObjWriterT6.h"
+ 
+ #include "FontIcon/FontIconDumperT6.h"
++#include "GfxWorld/GfxWorldDumperT6.h"
+ #include "Game/T6/Font/FontDumperT6.h"
+ #include "Game/T6/Image/ImageDumperT6.h"
+ #include "Game/T6/Maps/MapEntsDumperT6.h"
+@@ -54,7 +55,7 @@ void ObjWriter::RegisterAssetDumpers(AssetDumpingContext& context)
+     // REGISTER_DUMPER(AssetDumperGameWorldSp, m_game_world_sp)
+     // REGISTER_DUMPER(AssetDumperGameWorldMp, m_game_world_mp)
+     RegisterAssetDumper(std::make_unique<map_ents::DumperT6>());
+-    // REGISTER_DUMPER(AssetDumperGfxWorld, m_gfx_world)
++    RegisterAssetDumper(std::make_unique<gfx_world::DumperT6>());
+     RegisterAssetDumper(std::make_unique<light_def::DumperT6>());
+     RegisterAssetDumper(std::make_unique<font::JsonDumperT6>());
+     RegisterAssetDumper(font_icon::CreateDumperT6());

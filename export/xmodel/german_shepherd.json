@@ -13,7 +13,7 @@
     "lods": [
         {
             "distance": 9439.5771484375,
-            "file": "model_export/german_shepherd_lod0.glb"
+            "file": "model_export/german_shepherd_lod0.obj"
         }
     ],
     "type": "animated"

@@ -14,15 +14,15 @@
     "lods": [
         {
             "distance": 1000.0,
-            "file": "model_export/p_glo_bomb_stack_lod0.glb"
+            "file": "model_export/p_glo_bomb_stack_lod0.obj"
         },
         {
             "distance": 3000.0,
-            "file": "model_export/p_glo_bomb_stack_lod1.glb"
+            "file": "model_export/p_glo_bomb_stack_lod1.obj"
         },
         {
             "distance": 6000.0,
-            "file": "model_export/p_glo_bomb_stack_lod2.glb"
+            "file": "model_export/p_glo_bomb_stack_lod2.obj"
         }
     ],
     "type": "rigid"

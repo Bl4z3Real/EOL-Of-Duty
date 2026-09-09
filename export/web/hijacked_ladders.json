@@ -1,5 +1,5 @@
 {
-  "format": "hijacked-ladders-v1",
+  "format": "ladders-v1",
   "source": "export/web/hijacked_collision.gltf",
   "coordinateSystem": "three-y-up",
   "pattern": "ladder",

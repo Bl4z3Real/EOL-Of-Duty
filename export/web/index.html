@@ -139,6 +139,20 @@
     margin-top: 8px; font-size: 10px; letter-spacing: .3em;
     text-transform: uppercase; color: rgba(206, 224, 240, .6);
   }
+  /* Map picker: the loaded map sits at full strength, the others wait dimmed.
+     Picking one reloads with ?map=, since the map is fixed before boot. */
+  .fe-maps { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px; }
+  .fe-map { cursor: pointer; opacity: .55; transition: opacity .15s ease; }
+  .fe-map.active { opacity: 1; }
+  .fe-map.active figcaption { color: var(--fe-accent); }
+  .fe-map:hover:not(.unavailable) { opacity: 1; }
+  .fe-map.unavailable { opacity: .28; cursor: not-allowed; }
+  .fe-map.no-art img { visibility: hidden; }
+  .fe-map.no-art::after {
+    content: attr(data-name); position: absolute; left: 0; right: 0; top: 50%;
+    transform: translateY(-100%); text-align: center; font-size: 13px;
+    letter-spacing: .3em; text-transform: uppercase; color: rgba(206, 224, 240, .7);
+  }
   .fe-prompt {
     margin: 0; font-size: 13px; letter-spacing: .36em; text-indent: .36em;
     text-transform: uppercase; color: var(--fe-accent);
@@ -205,6 +219,36 @@
   .fe-class-selection {
     margin: 0; color: var(--fe-accent); font-size: 11px; letter-spacing: .2em;
     text-transform: uppercase; white-space: nowrap;
+  }
+  /* Create-a-class tabs: Primary, Secondary, Lethal, Tactical, as the game
+     lays its class editor out. The equipped pick sits under each label. */
+  .fe-class-tabs { display: flex; gap: 6px; padding: 0 8px; }
+  .fe-class-tab {
+    position: relative; appearance: none; border: 0; background: none; cursor: pointer;
+    min-width: 150px; padding: 7px 14px 8px; text-align: left; color: #dfe9f2;
+    font: 600 11px/1.3 var(--fe-ui); font-stretch: condensed; letter-spacing: .22em;
+    text-transform: uppercase; transition: color .12s ease-out;
+  }
+  .fe-class-tab::before {
+    content: ''; position: absolute; inset: 0; z-index: -1;
+    -webkit-mask: url('ui/menu_button_backing.png') center/100% 100% no-repeat;
+    mask: url('ui/menu_button_backing.png') center/100% 100% no-repeat;
+    background: rgba(139, 173, 198, .2); transition: background .12s ease-out;
+  }
+  .fe-class-tab:hover::before, .fe-class-tab:focus-visible::before { background: rgba(127, 255, 196, .3); }
+  .fe-class-tab[data-on="true"] { color: #04140d; }
+  .fe-class-tab[data-on="true"]::before {
+    -webkit-mask-image: url('ui/menu_button_backing_highlight.png');
+    mask-image: url('ui/menu_button_backing_highlight.png');
+    background: var(--fe-accent);
+  }
+  .fe-class-tab small {
+    display: block; margin-top: 2px; font-size: 9px; letter-spacing: .16em; opacity: .75;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px;
+  }
+  .fe-class-card[hidden] { display: none; }
+  .fe-class-card.no-art .fe-class-art {
+    color: rgba(206, 224, 240, .55); font-size: 11px; letter-spacing: .28em; text-transform: uppercase;
   }
   .fe-class-grid {
     display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -286,6 +330,19 @@
   #blocker[data-screen="class"] .fe-wordmark { font-size: clamp(20px, 3vw, 30px); }
   #blocker[data-screen="class"] .fe-wordmark::after { margin-top: 14px; }
   #blocker[data-screen="class"] .fe-sub { display: none; }
+  /* Reserve space for the title and actions; only the desktop roster scrolls. */
+  body:not(.touch-mode) #blocker[data-screen="class"] .fe-content { max-height: 100%; }
+  body:not(.touch-mode) #blocker[data-screen="class"] .fe-content > header { flex-shrink: 0; }
+  body:not(.touch-mode) .fe-class { width: 100%; min-height: 0; max-height: none; }
+  body:not(.touch-mode) .fe-class-head,
+  body:not(.touch-mode) .fe-class-tabs,
+  body:not(.touch-mode) .fe-class-actions { flex-shrink: 0; }
+  body:not(.touch-mode) .fe-class-tabs { flex-wrap: wrap; }
+  body:not(.touch-mode) .fe-class-tab { min-width: 0; flex: 1 1 120px; }
+  body:not(.touch-mode) .fe-class-grid {
+    overflow-y: auto; overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: #7fffc480 #07121ab8;
+  }
   #blocker[data-screen="error"] .fe-message { display: block; }
   #blocker[data-screen="error"] .fe-wordmark::after { background: #ff6a5c; }
 
@@ -355,6 +412,33 @@
   .hud-digit-reserve { width: 17px; height: 34px; }
   .hud-digit-divider { margin: 0 3px; }
   body.locked #hud-minimap, body.locked #hud-compass, body.locked #hud-ammo { opacity: 1; }
+  /* Sniper scope: the game's full-screen lens image, square, sized to the
+     shorter screen side, with the sides blacked out like the original. */
+  #scope {
+    position: fixed; inset: 0; z-index: 2; display: none; background: #000;
+    pointer-events: none;
+  }
+  #scope img {
+    position: absolute; left: 50%; top: 50%; width: min(100vw, 100vh); height: min(100vw, 100vh);
+    transform: translate(-50%, -50%); image-rendering: auto;
+  }
+  #scope[data-on="true"] { display: block; }
+  #scope::before, #scope::after {
+    content: ''; position: absolute; left: 50%; top: 50%; background: rgba(0, 0, 0, .9);
+    transform: translate(-50%, -50%);
+  }
+  #scope::before { width: 2px; height: min(100vw, 100vh); }
+  #scope::after { height: 2px; width: min(100vw, 100vh); }
+  /* The lens holds the whole picture; the background under it stays visible
+     through the transparent glass of the overlay art. */
+  #scope { background: transparent; }
+  #scope .scope-side { position: absolute; top: 0; bottom: 0; background: #000; width: calc((100vw - min(100vw, 100vh)) / 2); }
+  #scope .scope-side.left { left: 0; }
+  #scope .scope-side.right { right: 0; }
+  #scope .scope-cap { position: absolute; left: 0; right: 0; background: #000; height: calc((100vh - min(100vw, 100vh)) / 2); }
+  #scope .scope-cap.top { top: 0; }
+  #scope .scope-cap.bottom { bottom: 0; }
+  body.locked.scoped #crosshair { opacity: 0; }
   #crosshair {
     position: fixed; left: 50%; top: 50%; z-index: 2; width: 5px; height: 5px;
     margin: -2px; border-radius: 50%; background: rgba(255,255,255,.9);
@@ -389,6 +473,19 @@
   }
   .killfeed-entry { padding: 3px 7px; background: rgba(2, 8, 12, .58); }
   .killfeed-entry .killer { color: var(--fe-accent); }
+  .killfeed-entry .range { color: #ffd76a; margin-left: 6px; font-size: 11px; }
+  /* Equipment: the grenade icons and counts under the ammo, in HUD art. */
+  #hud-equipment {
+    position: fixed; right: 22px; bottom: 84px; z-index: 2; display: flex; gap: 14px;
+    opacity: 0; transition: opacity .2s ease-out; pointer-events: none;
+    filter: drop-shadow(0 1px 3px rgba(0, 0, 0, .9));
+  }
+  .hud-equip { display: flex; align-items: center; gap: 5px; color: #e8f4ee; font: 600 13px/1 var(--fe-ui); }
+  .hud-equip img { width: 26px; height: 26px; object-fit: contain; }
+  .hud-equip[data-empty="true"] { opacity: .35; }
+  .hud-equip small { font-size: 9px; letter-spacing: .18em; color: rgba(206, 224, 240, .6); }
+  body.locked #hud-equipment { opacity: 1; }
+  body.locked.player-dead #hud-equipment { opacity: 0; transition: none; }
   /* Medal popups -- the game's own `hud_medal_burst_orange` flash behind the
      `hud_medals_*` icon from ui/medals/, name and +XP in HUD type. They stack
      downwards under the crosshair line, newest on top. */
@@ -489,10 +586,7 @@
       <div class="fe-status"><span id="fe-caption">Preparing game…</span><span id="fe-percent"></span></div>
     </div>
     <div class="fe-start">
-      <figure class="fe-card">
-        <img src="ui/menu_mp_map_select_hijacked_final.png" alt="Hijacked" width="256" height="128">
-        <figcaption>mp_hijacked</figcaption>
-      </figure>
+      <div class="fe-maps" id="fe-maps"></div>
       <div class="fe-start-foot">
         <p class="fe-prompt">Click to play</p>
         <button type="button" class="fe-btn" data-action="class">Create a class</button>
@@ -513,50 +607,15 @@
       <div class="fe-class-head">
         <div>
           <h2 class="fe-heading">Create a class</h2>
-          <p class="fe-class-sub">Choose your primary assault rifle</p>
+          <p class="fe-class-sub" id="fe-class-sub">Choose your primary</p>
         </div>
-        <p class="fe-class-selection" id="fe-class-selection">Select a rifle</p>
+        <p class="fe-class-selection" id="fe-class-selection">Select a weapon</p>
       </div>
-      <div class="fe-class-grid">
-        <button type="button" class="fe-class-card" data-weapon-id="m27">
-          <span class="fe-class-art"><img data-card-art src="ui/menu_mp_weapons_hk416_big.png" alt="M27"></span>
-          <span class="fe-class-info"><strong class="fe-class-name" data-card-name></strong><span class="fe-class-role">Assault rifle</span><span class="fe-class-stats"><span class="fe-class-stat"><img class="fe-class-fire" data-card-fire-type src="ui/hud/hud_mp_firerate_auto.png" alt="Automatic"><b data-card-rpm></b> RPM</span><span class="fe-class-stat"><b data-card-mag></b> MAG</span><span class="fe-class-stat"><b data-card-damage></b> DMG</span></span><span class="fe-class-state" data-card-state>loading</span></span>
-        </button>
-        <button type="button" class="fe-class-card" data-weapon-id="an94">
-          <span class="fe-class-art"><img data-card-art src="ui/menu_mp_weapons_an94_big.png" alt="AN-94"></span>
-          <span class="fe-class-info"><strong class="fe-class-name" data-card-name></strong><span class="fe-class-role">Assault rifle</span><span class="fe-class-stats"><span class="fe-class-stat"><img class="fe-class-fire" data-card-fire-type src="ui/hud/hud_mp_firerate_auto.png" alt="Automatic"><b data-card-rpm></b> RPM</span><span class="fe-class-stat"><b data-card-mag></b> MAG</span><span class="fe-class-stat"><b data-card-damage></b> DMG</span></span><span class="fe-class-state" data-card-state>loading</span></span>
-        </button>
-        <button type="button" class="fe-class-card" data-weapon-id="sa58">
-          <span class="fe-class-art"><img data-card-art src="ui/menu_mp_weapons_sa58_big.png" alt="FAL OSW"></span>
-          <span class="fe-class-info"><strong class="fe-class-name" data-card-name></strong><span class="fe-class-role">Assault rifle</span><span class="fe-class-stats"><span class="fe-class-stat"><img class="fe-class-fire" data-card-fire-type src="ui/hud/hud_mp_firerate_single.png" alt="Single"><b data-card-rpm></b> RPM</span><span class="fe-class-stat"><b data-card-mag></b> MAG</span><span class="fe-class-stat"><b data-card-damage></b> DMG</span></span><span class="fe-class-state" data-card-state>loading</span></span>
-        </button>
-        <button type="button" class="fe-class-card" data-weapon-id="saritch">
-          <span class="fe-class-art"><img data-card-art src="ui/menu_mp_weapons_saritch_big.png" alt="SMR"></span>
-          <span class="fe-class-info"><strong class="fe-class-name" data-card-name></strong><span class="fe-class-role">Assault rifle</span><span class="fe-class-stats"><span class="fe-class-stat"><img class="fe-class-fire" data-card-fire-type src="ui/hud/hud_mp_firerate_single.png" alt="Single"><b data-card-rpm></b> RPM</span><span class="fe-class-stat"><b data-card-mag></b> MAG</span><span class="fe-class-stat"><b data-card-damage></b> DMG</span></span><span class="fe-class-state" data-card-state>loading</span></span>
-        </button>
-        <button type="button" class="fe-class-card" data-weapon-id="scar">
-          <span class="fe-class-art"><img data-card-art src="ui/menu_mp_weapons_scar_big.png" alt="SCAR-H"></span>
-          <span class="fe-class-info"><strong class="fe-class-name" data-card-name></strong><span class="fe-class-role">Assault rifle</span><span class="fe-class-stats"><span class="fe-class-stat"><img class="fe-class-fire" data-card-fire-type src="ui/hud/hud_mp_firerate_auto.png" alt="Automatic"><b data-card-rpm></b> RPM</span><span class="fe-class-stat"><b data-card-mag></b> MAG</span><span class="fe-class-stat"><b data-card-damage></b> DMG</span></span><span class="fe-class-state" data-card-state>loading</span></span>
-        </button>
-        <button type="button" class="fe-class-card" data-weapon-id="sig556">
-          <span class="fe-class-art"><img data-card-art src="ui/menu_mp_weapons_sig556_big.png" alt="SWAT-556"></span>
-          <span class="fe-class-info"><strong class="fe-class-name" data-card-name></strong><span class="fe-class-role">Assault rifle</span><span class="fe-class-stats"><span class="fe-class-stat"><img class="fe-class-fire" data-card-fire-type src="ui/hud/hud_mp_firerate_burst.png" alt="Burst"><b data-card-rpm></b> RPM</span><span class="fe-class-stat"><b data-card-mag></b> MAG</span><span class="fe-class-stat"><b data-card-damage></b> DMG</span></span><span class="fe-class-state" data-card-state>loading</span></span>
-        </button>
-        <button type="button" class="fe-class-card" data-weapon-id="tar21">
-          <span class="fe-class-art"><img data-card-art src="ui/menu_mp_weapons_tar21_big.png" alt="MTAR"></span>
-          <span class="fe-class-info"><strong class="fe-class-name" data-card-name></strong><span class="fe-class-role">Assault rifle</span><span class="fe-class-stats"><span class="fe-class-stat"><img class="fe-class-fire" data-card-fire-type src="ui/hud/hud_mp_firerate_auto.png" alt="Automatic"><b data-card-rpm></b> RPM</span><span class="fe-class-stat"><b data-card-mag></b> MAG</span><span class="fe-class-stat"><b data-card-damage></b> DMG</span></span><span class="fe-class-state" data-card-state>loading</span></span>
-        </button>
-        <button type="button" class="fe-class-card" data-weapon-id="type95">
-          <span class="fe-class-art"><img data-card-art src="ui/menu_mp_weapons_type95_big.png" alt="Type 25"></span>
-          <span class="fe-class-info"><strong class="fe-class-name" data-card-name></strong><span class="fe-class-role">Assault rifle</span><span class="fe-class-stats"><span class="fe-class-stat"><img class="fe-class-fire" data-card-fire-type src="ui/hud/hud_mp_firerate_auto.png" alt="Automatic"><b data-card-rpm></b> RPM</span><span class="fe-class-stat"><b data-card-mag></b> MAG</span><span class="fe-class-stat"><b data-card-damage></b> DMG</span></span><span class="fe-class-state" data-card-state>loading</span></span>
-        </button>
-        <button type="button" class="fe-class-card" data-weapon-id="xm8">
-          <span class="fe-class-art"><img data-card-art src="ui/menu_mp_weapons_xm8_big.png" alt="M8A1"></span>
-          <span class="fe-class-info"><strong class="fe-class-name" data-card-name></strong><span class="fe-class-role">Assault rifle</span><span class="fe-class-stats"><span class="fe-class-stat"><img class="fe-class-fire" data-card-fire-type src="ui/hud/hud_mp_firerate_burst.png" alt="Burst"><b data-card-rpm></b> RPM</span><span class="fe-class-stat"><b data-card-mag></b> MAG</span><span class="fe-class-stat"><b data-card-damage></b> DMG</span></span><span class="fe-class-state" data-card-state>loading</span></span>
-        </button>
-      </div>
+      <!-- Tabs and cards are built from weapons.js at start-up. -->
+      <div class="fe-class-tabs" id="fe-class-tabs"></div>
+      <div class="fe-class-grid" id="fe-class-grid"></div>
       <div class="fe-class-actions">
-        <button type="button" class="fe-btn" data-action="class-confirm">Equip rifle</button>
+        <button type="button" class="fe-btn" data-action="class-confirm">Equip class</button>
         <button type="button" class="fe-btn" data-action="class-back">Back</button>
       </div>
     </section>
@@ -575,6 +634,7 @@
 <div id="hud">loading…</div>
 <div id="hud-minimap"></div>
 <div id="hud-compass"></div>
+<div id="hud-equipment"></div>
 <div id="hud-ammo">
   <div id="hud-weapon-name"></div>
   <div id="hud-ammo-row"></div>
@@ -593,6 +653,7 @@
     <button type="button" class="fe-btn touch-only" id="touch-restart" hidden>Play again</button>
   </div>
 </div>
+<div id="scope" data-on="false"><div class="scope-side left"></div><div class="scope-side right"></div><div class="scope-cap top"></div><div class="scope-cap bottom"></div><img id="scope-lens" alt=""></div>
 <div id="crosshair"></div>
 <svg id="hitmarker" viewBox="0 0 26 26" data-kind="torso" aria-hidden="true">
   <line x1="3" y1="3" x2="9" y2="9"></line>
@@ -612,6 +673,11 @@
   <button type="button" class="touch-button touch-jump" data-touch="jump" aria-label="Jump"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 10 6-6 6 6M12 4v14M4 21h16"/></svg><span>JUMP</span></button>
   <button type="button" class="touch-button touch-crouch" data-touch="crouch" aria-label="Toggle crouch" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="14" cy="4" r="2"/><path d="m12 8-3 5 7 2-2 6m-3-11 5 2h4M9 13l-5 5h6"/></svg><span>CROUCH</span></button>
   <button type="button" class="touch-button touch-reload" data-touch="reload" aria-label="Reload"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 10a8 8 0 1 0-2 8M20 4v6h-6"/></svg><span>RELOAD</span></button>
+  <button type="button" class="touch-button touch-equipment touch-switch" data-touch="switch" aria-label="Switch weapon"><span>SWITCH</span></button>
+  <button type="button" class="touch-button touch-equipment touch-melee" data-touch="melee" aria-label="Melee attack"><span>MELEE</span></button>
+  <button type="button" class="touch-button touch-equipment touch-frag" data-touch="frag" aria-label="Hold to cook frag; release to throw"><span>FRAG</span><span data-equipment-count="frag">1</span></button>
+  <button id="touch-breath" type="button" class="touch-button touch-breath" data-touch="breath" aria-label="Hold breath" hidden><span>STEADY</span></button>
+  <button type="button" class="touch-button touch-equipment touch-smoke" data-touch="smoke" aria-label="Throw smoke grenade"><span>SMOKE</span><span data-equipment-count="smoke">1</span></button>
   <button type="button" class="touch-button touch-scores" id="touch-scores" aria-label="Show scoreboard"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10h4v10m2 0V4h4v16m2 0V7h4v13"/></svg></button>
   <button type="button" class="touch-button touch-pause" id="touch-pause" aria-label="Pause game"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14M16 5v14"/></svg></button>
 </div>
@@ -646,9 +712,10 @@ import { EnemyManager } from './enemy-system.js';
 import { PlayerHealth } from './player-health.js';
 import { FreeForAllMatch } from './free-for-all-match.js';
 import { MedalTracker } from './medals.js';
-import { Hud } from './hud.js';
+import { Hud, calibrationFromCorners } from './hud.js';
 import { Frontend } from './frontend.js';
 import { TouchControls } from './touch-controls.js';
+import { loadGltf as loadGltfAsset } from './load-gltf.js';
 import { GraphicsSettings, filterTextures } from './graphics-settings.js';
 import { GraphicsRenderer } from './graphics-renderer.js';
 import { PlayCounter } from './play-counter.js';
@@ -656,6 +723,29 @@ import { loadCollisionWorld } from './collision-world.js';
 import { optimizeStaticScene } from './scene-optimizer.js';
 import { applyEnvironmentLighting, loadGradeLut, POST_SHADER, HAZE, applyMaterialClasses } from './lighting.js';
 import { loadProbeVolume, attachObjectProbe } from './light-probes.js';
+import { MAPS, MAP_IDS, mapFiles, resolveMapId, rememberMap, hideMapNodes } from './maps.js';
+import {
+  SpreadModel, ViewKick, SprintGate, damageAtDistance, locationMultiplier, selectMeleeTarget,
+  LONGSHOT_DISTANCE, metresFromUnits,
+  adsFieldOfView, zoomLookScale,
+} from './gunplay.js';
+import { WEAPON_BALLISTICS } from './weapon-ballistics.js';
+import { AmbienceManager, MusicPlayer, StrideTracker, SurfaceProbe, WorldAudio } from './world-audio.js';
+import { Destructibles } from './destructibles.js';
+import {
+  WEAPONS, WEAPON_CLASSES, WEAPON_CLASS_IDS, weaponsOfClass, findWeapon, weaponCue,
+  EQUIPMENT, equipmentOfClass, MELEE, THROW_CLIPS, DEFAULT_LOADOUT, nextHeldWeapon, SCOPE,
+} from './weapons.js';
+import { WEAPON_CAMO_IDS, randomPick } from './skins.js';
+import { GrenadeManager, throwOrigin, throwVelocity } from './grenades.js';
+import { animateWater } from './lighting.js';
+
+// Which map this page load plays. `?map=` wins, then the remembered choice.
+// Reading `localStorage` throws in a sandboxed frame, hence the guard.
+const mapStorage = (() => { try { return window.localStorage; } catch { return null; } })();
+const activeMap = MAPS[resolveMapId({ search: location.search, storage: mapStorage })];
+const activeMapFiles = mapFiles(activeMap);
+rememberMap(mapStorage, activeMap.id);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87a8c8);
@@ -683,250 +773,79 @@ const graphicsRenderer = new GraphicsRenderer(renderer);
 document.body.appendChild(renderer.domElement);
 
 const VIEWMODEL_HANDS = 'viewmodel/c_usa_mp_fbi_shortsleeve_viewhands_lod0.glb';
-const WEAPON_DEFINITIONS = Object.freeze({
-  m27: Object.freeze({
-    id: 'm27',
-    name: 'M27',
-    slot: 1,
-    magazineSize: 30,
-    reserveAmmo: 240,
-    roundsPerMinute: 750,
-    damage: 33,
-    fireTypeIcon: 'hud_mp_firerate_auto',
-    viewmodelUrl: 'viewmodel/t6_wpn_ar_hk416_view_lod0.glb',
-    magazineUrl: 'viewmodel/t6_attach_mag_hk416_view_lod0.glb',
-    // Authored attachment offset from the shipped hk416_mp weapon file.
-    magazineOffset: Object.freeze([3.389, 0, -0.383]),    clips: Object.freeze({
-      idle: 'viewmodel/anims/viewmodel_hk416_idle.json',
-      fire: 'viewmodel/anims/viewmodel_hk416_fire.json',
-      adsFire: 'viewmodel/anims/viewmodel_hk416_ads_fire.json',
-      reload: 'viewmodel/anims/viewmodel_hk416_reload.json',
-      reloadEmpty: 'viewmodel/anims/viewmodel_hk416_reload_empty.json',
-    }),
-  }),
-  an94: Object.freeze({
-    id: 'an94',
-    name: 'AN-94',
-    slot: 2,
-    magazineSize: 30,
-    reserveAmmo: 240,
-    roundsPerMinute: 625,
-    initialRoundsPerMinute: 937.5,
-    initialShotCount: 2,
-    damage: 40,
-    fireTypeIcon: 'hud_mp_firerate_auto',
-    adsFov: 50,
-    viewmodelUrl: 'viewmodel/t6_wpn_ar_an94_view_lod0.glb',
-    magazineUrl: 'viewmodel/t6_attach_mag_an94_view_lod0.glb',
-    // Authored attachment offsets from the shipped an94_mp weapon file.
-    magazineOffset: Object.freeze([4.473, -1.085, -1.5]),
-    // T6's roll is around the weapon's forward X axis. The GLB weld applies
-    // the engine-to-view transform after this attachment transform.
-    magazineRotation: Object.freeze([THREE.MathUtils.degToRad(-15), 0, 0]),    clips: Object.freeze({
-      idle: 'viewmodel/anims/viewmodel_an94_idle.json',
-      introFire: 'viewmodel/anims/viewmodel_an94_intro_fire.json',
-      fire: 'viewmodel/anims/viewmodel_an94_fire.json',
-      introAdsFire: 'viewmodel/anims/viewmodel_an94_intro_ads_fire.json',
-      adsFire: 'viewmodel/anims/viewmodel_an94_ads_fire.json',
-      reload: 'viewmodel/anims/viewmodel_an94_reload.json',
-      reloadEmpty: 'viewmodel/anims/viewmodel_an94_reload_empty.json',
-    }),
-  }),
-  sa58: Object.freeze({
-    id: "sa58",
-    name: "FAL OSW",
-    slot: 3,
-    magazineSize: 25,
-    reserveAmmo: 240,
-    roundsPerMinute: 625,
-    damage: 55,
-    fireTypeIcon: "hud_mp_firerate_single",
-    viewmodelUrl: 'viewmodel/t6_wpn_ar_sa58_view_lod0.glb',
-    magazineUrl: 'viewmodel/t6_attach_mag_sa58_view_lod0.glb',
-    // Authored attachment offset from the shipped sa58_mp weapon file.
-    magazineOffset: Object.freeze([4.006, 0.015, 1.821]),
-    magazineRotation: Object.freeze([THREE.MathUtils.degToRad(0), 0, 0]),    clips: Object.freeze({
-      idle: 'viewmodel/anims/viewmodel_sa58_idle.json',
-      fire: 'viewmodel/anims/viewmodel_sa58_fire.json',
-      adsFire: 'viewmodel/anims/viewmodel_sa58_ads_fire.json',
-      reload: 'viewmodel/anims/viewmodel_sa58_reload.json',
-      reloadEmpty: 'viewmodel/anims/viewmodel_sa58_reload_empty.json',
-    }),
-  }),
-  saritch: Object.freeze({
-    id: "saritch",
-    name: "SMR",
-    slot: 4,
-    magazineSize: 20,
-    reserveAmmo: 240,
-    roundsPerMinute: 536,
-    damage: 50,
-    fireTypeIcon: "hud_mp_firerate_single",
-    viewmodelUrl: 'viewmodel/t6_wpn_ar_saritch_view_lod0.glb',
-    magazineUrl: 'viewmodel/t6_attach_mag_saritch_view_lod0.glb',
-    // Authored attachment offset from the shipped saritch_mp weapon file.
-    magazineOffset: Object.freeze([-8.907, 0, -2.646]),
-    magazineRotation: Object.freeze([THREE.MathUtils.degToRad(0), 0, 0]),
-    // This rig ships no tritium insert, so findSightTip has nothing to measure
-    // and the sight line has to be given to it. Measured off the shipped model
-    // with `node .tools/measure_sights.mjs saritch`; points are in j_gun space.
-    // The tool reads the top of each sight, which is right for the post-and-notch
-    // irons it was calibrated on but sits above the aperture on this gun's ring
-    // sights, so the picture rendered 60px low. Both points are dropped by the
-    // same 0.281 to recentre it: an equal shift translates the sight picture
-    // without turning the sight line, so the slope the tool checks is unchanged.
-    adsSightAnchors: Object.freeze({
-      front: Object.freeze([12.672, 0, 3.643]),
-      rear: Object.freeze([-2.547, 0, 3.958]),
-    }),
-    clips: Object.freeze({
-      idle: 'viewmodel/anims/viewmodel_saritch_idle.json',
-      fire: 'viewmodel/anims/viewmodel_saritch_fire.json',
-      adsFire: 'viewmodel/anims/viewmodel_saritch_ads_fire.json',
-      reload: 'viewmodel/anims/viewmodel_saritch_reload.json',
-      reloadEmpty: 'viewmodel/anims/viewmodel_saritch_reload_empty.json',
-    }),
-  }),
-  scar: Object.freeze({
-    id: "scar",
-    name: "SCAR-H",
-    slot: 5,
-    magazineSize: 30,
-    reserveAmmo: 240,
-    roundsPerMinute: 625,
-    damage: 40,
-    fireTypeIcon: "hud_mp_firerate_auto",
-    viewmodelUrl: 'viewmodel/t6_wpn_ar_scarh_view_lod0.glb',
-    magazineUrl: 'viewmodel/t6_attach_mag_scar_view_lod0.glb',
-    // Authored attachment offset from the shipped scar_mp weapon file.
-    magazineOffset: Object.freeze([3.716, 0, -0.345]),
-    magazineRotation: Object.freeze([THREE.MathUtils.degToRad(0), 0, 0]),
-    // No tritium insert, and this rig is the awkward one: its sight hood reaches
-    // the centreline and stands 0.54 above the post, so the obvious reading of
-    // the geometry measures the hood and tilts the sight line up toward the
-    // muzzle. measure_sights.mjs falls back to a narrow-blade search here.
-    adsSightAnchors: Object.freeze({
-      front: Object.freeze([13.515, 0, 4.846]),
-      rear: Object.freeze([-2.237, 0, 4.894]),
-    }),
-    clips: Object.freeze({
-      idle: 'viewmodel/anims/viewmodel_scar_h_idle.json',
-      fire: 'viewmodel/anims/viewmodel_scar_h_fire.json',
-      adsFire: 'viewmodel/anims/viewmodel_scar_h_ads_fire.json',
-      reload: 'viewmodel/anims/viewmodel_scar_h_reload.json',
-      reloadEmpty: 'viewmodel/anims/viewmodel_scar_h_reload_empty.json',
-    }),
-  }),
-  sig556: Object.freeze({
-    id: "sig556",
-    name: "SWAT-556",
-    slot: 6,
-    magazineSize: 30,
-    reserveAmmo: 240,
-    roundsPerMinute: 938,
-    damage: 40,
-    fireTypeIcon: "hud_mp_firerate_burst",
-    viewmodelUrl: 'viewmodel/t6_wpn_ar_sig556_view_lod0.glb',
-    magazineUrl: 'viewmodel/t6_attach_mag_sig556_view_lod0.glb',
-    // Authored attachment offset from the shipped sig556_mp weapon file.
-    magazineOffset: Object.freeze([5.663, -0.008, -0.815]),
-    magazineRotation: Object.freeze([THREE.MathUtils.degToRad(0), 0, 0]),
-    // No tritium insert on this rig either, and ring sights again, so the same
-    // 50px recentring applies: both points dropped by 0.234 off what
-    // `node .tools/measure_sights.mjs sig556` reads. See the SMR above.
-    adsSightAnchors: Object.freeze({
-      front: Object.freeze([19.739, 0, 4.921]),
-      rear: Object.freeze([1.044, 0, 5.239]),
-    }),
-    clips: Object.freeze({
-      idle: 'viewmodel/anims/viewmodel_sig556_idle.json',
-      fire: 'viewmodel/anims/viewmodel_sig556_fire.json',
-      adsFire: 'viewmodel/anims/viewmodel_sig556_ads_fire.json',
-      introFire: 'viewmodel/anims/viewmodel_sig556_fire.json',
-      reload: 'viewmodel/anims/viewmodel_sig556_reload.json',
-      reloadEmpty: 'viewmodel/anims/viewmodel_sig556_reload_empty.json',
-    }),
-  }),
-  tar21: Object.freeze({
-    id: "tar21",
-    name: "MTAR",
-    slot: 7,
-    magazineSize: 30,
-    reserveAmmo: 240,
-    roundsPerMinute: 750,
-    damage: 40,
-    fireTypeIcon: "hud_mp_firerate_auto",
-    viewmodelUrl: 'viewmodel/t6_wpn_ar_x95l_view_lod0.glb',
-    magazineUrl: 'viewmodel/t6_attach_mag_x95l_view_lod0.glb',
-    // Authored attachment offset from the shipped tar21_mp weapon file.
-    magazineOffset: Object.freeze([-9.754, 0, -0.04]),
-    magazineRotation: Object.freeze([THREE.MathUtils.degToRad(0), 0, 0]),    clips: Object.freeze({
-      idle: 'viewmodel/anims/viewmodel_tavor_idle.json',
-      fire: 'viewmodel/anims/viewmodel_tavor_fire.json',
-      adsFire: 'viewmodel/anims/viewmodel_tavor_ads_fire.json',
-      reload: 'viewmodel/anims/viewmodel_tavor_reload.json',
-      reloadEmpty: 'viewmodel/anims/viewmodel_tavor_reload_empty.json',
-    }),
-  }),
-  type95: Object.freeze({
-    id: "type95",
-    name: "Type 25",
-    slot: 8,
-    magazineSize: 30,
-    reserveAmmo: 240,
-    roundsPerMinute: 938,
-    damage: 33,
-    fireTypeIcon: "hud_mp_firerate_auto",
-    viewmodelUrl: 'viewmodel/t6_wpn_ar_type95_view_lod0.glb',
-    magazineUrl: 'viewmodel/t6_attach_mag_type95_view_lod0.glb',
-    // Authored attachment offset from the shipped type95_mp weapon file.
-    magazineOffset: Object.freeze([-8.38, 0, -0.678]),
-    magazineRotation: Object.freeze([THREE.MathUtils.degToRad(0), 0, 0]),    clips: Object.freeze({
-      idle: 'viewmodel/anims/viewmodel_type95_ar_idle.json',
-      fire: 'viewmodel/anims/viewmodel_type95_ar_fire.json',
-      adsFire: 'viewmodel/anims/viewmodel_type95_ar_ads_fire.json',
-      introFire: 'viewmodel/anims/viewmodel_type95_ar_fire.json',
-      reload: 'viewmodel/anims/viewmodel_type95_ar_reload.json',
-      reloadEmpty: 'viewmodel/anims/viewmodel_type95_ar_reload_empty.json',
-    }),
-  }),
-  xm8: Object.freeze({
-    id: "xm8",
-    name: "M8A1",
-    slot: 9,
-    magazineSize: 36,
-    reserveAmmo: 240,
-    roundsPerMinute: 1250,
-    damage: 35,
-    fireTypeIcon: "hud_mp_firerate_burst",
-    viewmodelUrl: 'viewmodel/t6_wpn_ar_xm8_view_lod0.glb',
-    magazineUrl: 'viewmodel/t6_attach_mag_xm8_view_lod0.glb',
-    // Authored attachment offset from the shipped xm8_mp weapon file.
-    magazineOffset: Object.freeze([4.212, 0, 0.279]),
-    magazineRotation: Object.freeze([THREE.MathUtils.degToRad(0), 0, 0]),    clips: Object.freeze({
-      idle: 'viewmodel/anims/viewmodel_xm8_idle.json',
-      fire: 'viewmodel/anims/viewmodel_xm8_fire.json',
-      adsFire: 'viewmodel/anims/viewmodel_xm8_ads_fire.json',
-      introFire: 'viewmodel/anims/viewmodel_xm8_fire.json',
-      reload: 'viewmodel/anims/viewmodel_xm8_reload.json',
-      reloadEmpty: 'viewmodel/anims/viewmodel_xm8_reload_empty.json',
-    }),
-  }),
-});
+// Every weapon the class screen offers lives in weapons.js; see that file to
+// add one. The name is kept for the debug surface and the smoke tests.
+const WEAPON_DEFINITIONS = WEAPONS;
+// The camo the player spawns with is drawn once per page load and kept until
+// K cycles it. Every weapon slot wears the same one, so a switch keeps it.
+let currentCamo = randomPick(WEAPON_CAMO_IDS) ?? WEAPON_CAMO_IDS[0];
 const weaponSlots = new Map(Object.values(WEAPON_DEFINITIONS).map((definition) => {
+  // Range falloff, spread, kick and timing from the weapon file, see gunplay.js.
+  const ballistics = WEAPON_BALLISTICS[definition.id] ?? {};
   const slotViewmodel = new Viewmodel({
     adsFov: definition.adsFov ?? 55,
     adsSightAnchors: definition.adsSightAnchors ?? null,
+    adsTransInTime: ballistics.adsTransInTime,
+    adsTransOutTime: ballistics.adsTransOutTime,
+    camo: currentCamo,
+    scope: definition.scope ?? null,
+    boltAction: Boolean(definition.boltAction),
+    torsoBind: definition.torsoBind ?? null,
   });
   slotViewmodel.setSize(innerWidth, innerHeight);
-  return [definition.id, { definition, viewmodel: slotViewmodel, controller: null }];
+  const gunplay = {
+    ballistics,
+    spread: new SpreadModel(ballistics),
+    kick: new ViewKick(ballistics),
+    sprint: new SprintGate(ballistics),
+  };
+  return [definition.id, { definition, viewmodel: slotViewmodel, controller: null, gunplay }];
 }));
-let activeWeaponId = 'm27';
+// The equipped class: a primary, a secondary, a lethal and a tactical. The
+// wheel and the number keys move between the two guns; G and Q throw.
+const loadout = { ...DEFAULT_LOADOUT };
+let activeWeaponId = loadout.primary;
 let activeWeaponSlot = weaponSlots.get(activeWeaponId);
 let viewmodel = activeWeaponSlot.viewmodel;
+let gunplay = activeWeaponSlot.gunplay;
+// Grenades in hand this life, by kind; a life restores the class's counts.
+const equipmentAmmo = {};
+function resetEquipment() {
+  for (const cls of ['lethal', 'tactical']) {
+    const item = EQUIPMENT[loadout[cls]];
+    if (item) equipmentAmmo[item.kind] = item.count;
+  }
+}
+resetEquipment();
+let grenades = null;
+let knifeScene = null;
+const grenadeScenes = new Map();
+// A throw in progress: which kind, and when its fuse started if it cooks.
+let throwState = null;
+let waterClock = null;
+// The sniper scope: the world zooms toward the weapon's zoomFov with the
+// raise, the overlay lands at the top of it, and the glass sways by the
+// file's adsIdleAmount until a held breath (Shift) steadies it.
+const scopeElement = document.getElementById('scope');
+const scopeLens = document.getElementById('scope-lens');
+const scopeState = { blend: 0, fov: SCOPE.hipFov, swayTime: 0, breath: 0, holding: false, tired: 0 };
+// World cues: footsteps, landings, impacts, whiz-bys. Samples come from the
+// map's own soundbank when extracted; without them every cue is silent.
+let worldAudio = null;
+let surfaceProbe = null;
+let destructibles = null;
+let ambience = null;
+let music = null;
+let matchStartCued = false;
+let timerMusicCued = false;
+let lastTimerBeep = -1;
+let breathTimer = 0;
+const playerStride = new StrideTracker();
+const enemyStrides = new Map();
+// What the sprint gate decided this frame; the viewmodel and fire gate read it.
+let sprintState = { sprinting: false, canFire: true };
 const viewBob = new ViewBob();
 let weapon = null;
-const WEAPON_ALIASES = Object.freeze({ hk416: 'm27' });
 
 // The prefiltered reflection probe supplies ambient and specular, so the
 // analytic lights only need to carve out direction. Both are turned down from
@@ -958,7 +877,7 @@ let probeVolumeStarted = false;
 function beginProbeVolume() {
   if (probeVolumeStarted) return;
   probeVolumeStarted = true;
-  loadProbeVolume()
+  loadProbeVolume({ layoutUrl: activeMapFiles.probesMeta, dataUrl: activeMapFiles.probes })
     .then((volume) => {
       probeVolume = volume;
       hemi.intensity = 0;
@@ -1059,7 +978,7 @@ function setGraphicsPreset(preset) {
   return graphics.preset;
 }
 
-loadGradeLut().then((lut) => {
+loadGradeLut(activeMap.lut).then((lut) => {
   gradeTarget = new THREE.WebGLRenderTarget(1, 1, {
     type: THREE.HalfFloatType,
     depthBuffer: true,
@@ -1077,6 +996,7 @@ loadGradeLut().then((lut) => {
     depthWrite: false,
   });
   gradeMaterial.uniforms.lut.value = lut;
+  if (lut?.image?.height) gradeMaterial.uniforms.lutRows.value = lut.image.height;
   gradeMaterial.uniforms.amount.value = lut ? 1 : 0;
   gradeScene = new THREE.Scene();
   gradeCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -1099,7 +1019,11 @@ let environmentReady = null;
 function loadEnvironment() {
   if (environmentReady) return environmentReady;
   beginProbeVolume();
-  environmentReady = applyEnvironmentLighting(renderer, scene)
+  environmentReady = applyEnvironmentLighting(renderer, scene, {
+    envPath: activeMap.env,
+    probePath: activeMap.probe,
+    visionUrl: activeMap.vision,
+  })
     .then((applied) => {
       lightingApplied = applied;
       // Feed the vision set's split tone into the post pass once it is built.
@@ -1132,18 +1056,161 @@ function loadEnvironment() {
 
 const blocker = document.getElementById('blocker');
 const menuButtons = [...blocker.querySelectorAll('.fe-btn')];
-const classCards = [...blocker.querySelectorAll('.fe-class-card')];
-const WEAPON_CARD_ART = Object.freeze({
-  m27: 'hk416',
-  an94: 'an94',
-  sa58: 'sa58',
-  saritch: 'saritch',
-  scar: 'scar',
-  sig556: 'sig556',
-  tar21: 'tar21',
-  type95: 'type95',
-  xm8: 'xm8',
+// Menu navigation and confirm cues from the game's own UI set, once the
+// world audio has loaded; the title screen is silent before that.
+function menuCue(alias) {
+  worldAudio?.play(alias, { ui: true, gain: 0.7, cents: 0 });
+}
+for (const element of blocker.querySelectorAll('.fe-btn, .fe-class-card')) {
+  element.addEventListener('mouseenter', () => menuCue('uin_main_nav'));
+  element.addEventListener('click', () => menuCue(element.dataset.action === 'class-back' ? 'uin_cmn_backout' : 'uin_main_enter'));
+}
+
+// Title-screen map picker. The map is fixed before the boot gate fires, so a
+// different choice reloads the page with `?map=` rather than swapping live.
+const mapRow = document.getElementById('fe-maps');
+for (const id of MAP_IDS) {
+  const map = MAPS[id];
+  const card = document.createElement('figure');
+  card.className = 'fe-card fe-map';
+  card.dataset.map = id;
+  card.dataset.name = map.name;
+  card.tabIndex = map.baked ? 0 : -1;
+  card.setAttribute('role', 'button');
+  card.setAttribute('aria-label', `Select ${map.name}`);
+  card.setAttribute('aria-pressed', String(id === activeMap.id));
+  card.setAttribute('aria-disabled', String(!map.baked));
+  if (id === activeMap.id) card.classList.add('active');
+  const art = document.createElement('img');
+  art.alt = map.name;
+  art.width = 256;
+  art.height = 128;
+  // A map whose bake has not landed stays visible but cannot be picked, and
+  // nothing is fetched for it: a probe would be a 404 on every title screen.
+  // A baked map whose title card is not exported yet shows its name instead.
+  if (map.baked && map.card) art.src = map.card;
+  else card.classList.add('no-art');
+  if (!map.baked) card.classList.add('unavailable');
+  const caption = document.createElement('figcaption');
+  if (!map.baked) caption.textContent = `${map.name} · coming soon`;
+  else if (id === activeMap.id) caption.textContent = `${map.name} · ready to deploy`;
+  else caption.textContent = `${map.name} · switch map`;
+  card.append(art, caption);
+  card.addEventListener('keydown', (event) => {
+    if (event.code !== 'Enter' && event.code !== 'Space') return;
+    event.preventDefault();
+    event.stopPropagation();
+    card.click();
+  });
+  card.addEventListener('mouseenter', () => menuCue('uin_main_nav'));
+  card.addEventListener('click', (event) => {
+    // The shell treats any click as "play". The loaded map's card keeps
+    // that meaning; another map's card reloads instead, so it must not.
+    if (id === activeMap.id) return;
+    menuCue('uin_main_enter');
+    event.stopPropagation();
+    if (!map.baked) return;
+    rememberMap(mapStorage, id);
+    const url = new URL(location.href);
+    url.searchParams.set('map', id);
+    location.assign(url);
+  });
+  mapRow.appendChild(card);
+}
+// Create-a-class is built from the registry: one tab per class, one card per
+// weapon or grenade. A weapon without exported card art shows its name.
+const classGrid = document.getElementById('fe-class-grid');
+const classTabRow = document.getElementById('fe-class-tabs');
+function buildClassCard(entry) {
+  const card = document.createElement('button');
+  card.type = 'button';
+  card.className = 'fe-class-card';
+  card.dataset.weaponId = entry.id;
+  card.dataset.weaponClass = entry.class;
+  const art = document.createElement('span');
+  art.className = 'fe-class-art';
+  const image = document.createElement('img');
+  if (entry.cardArt) {
+    image.src = entry.cardArt;
+    image.alt = entry.name;
+    art.appendChild(image);
+  } else if (entry.icon) {
+    image.src = entry.icon;
+    image.alt = entry.name;
+    image.style.height = '60%';
+    art.appendChild(image);
+  } else {
+    card.classList.add('no-art');
+    art.textContent = entry.name;
+  }
+  const info = document.createElement('span');
+  info.className = 'fe-class-info';
+  const name = document.createElement('strong');
+  name.className = 'fe-class-name';
+  name.textContent = entry.name;
+  const role = document.createElement('span');
+  role.className = 'fe-class-role';
+  role.textContent = entry.role ?? '';
+  const stats = document.createElement('span');
+  stats.className = 'fe-class-stats';
+  const stat = (label, value, icon = null) => {
+    const item = document.createElement('span');
+    item.className = 'fe-class-stat';
+    if (icon) {
+      const glyph = document.createElement('img');
+      glyph.className = 'fe-class-fire';
+      glyph.src = `ui/hud/${icon}.png`;
+      glyph.alt = icon.replace('hud_mp_firerate_', '');
+      item.appendChild(glyph);
+    }
+    const strong = document.createElement('b');
+    strong.textContent = value;
+    item.append(strong, document.createTextNode(` ${label}`));
+    stats.appendChild(item);
+  };
+  if (entry.roundsPerMinute) {
+    stat('RPM', entry.roundsPerMinute, entry.fireTypeIcon);
+    stat('MAG', entry.magazineSize);
+    stat('DMG', entry.damage);
+  } else if (entry.kind) {
+    if (entry.innerDamage) stat('DMG', entry.innerDamage);
+    if (entry.explosionRadius) stat('RADIUS', entry.explosionRadius);
+    if (entry.smokeDuration) stat('SEC', entry.smokeDuration);
+    stat('FUSE', entry.fuse);
+  }
+  const state = document.createElement('span');
+  state.className = 'fe-class-state';
+  state.dataset.cardState = '';
+  state.textContent = 'loading';
+  info.append(name, role, stats, state);
+  card.append(art, info);
+  return card;
+}
+const classCards = [];
+for (const classId of WEAPON_CLASS_IDS) {
+  for (const entry of [...weaponsOfClass(classId), ...equipmentOfClass(classId)]) {
+    const card = buildClassCard(entry);
+    classGrid.appendChild(card);
+    classCards.push(card);
+  }
+}
+const classTabs = WEAPON_CLASS_IDS.map((classId) => {
+  const cls = WEAPON_CLASSES[classId];
+  const tab = document.createElement('button');
+  tab.type = 'button';
+  tab.className = 'fe-class-tab';
+  tab.dataset.weaponClass = classId;
+  tab.textContent = cls.label;
+  const pick = document.createElement('small');
+  pick.dataset.tabPick = '';
+  tab.appendChild(pick);
+  classTabRow.appendChild(tab);
+  return tab;
 });
+for (const element of [...classCards, ...classTabs]) {
+  element.addEventListener('mouseenter', () => menuCue('uin_main_nav'));
+  element.addEventListener('click', () => menuCue('uin_main_enter'));
+}
 const frontend = new Frontend({
   waitingForInput: blocker.dataset.screen === 'welcome',
   elements: {
@@ -1155,43 +1222,28 @@ const frontend = new Frontend({
     controls: document.getElementById('fe-controls'),
     buttons: menuButtons,
     classCards,
+    classTabs,
     classSelection: document.getElementById('fe-class-selection'),
+    classSub: document.getElementById('fe-class-sub'),
     classConfirm: blocker.querySelector('[data-action="class-confirm"]'),
     onAction: (name) => menuAction(name),
   },
   onPlay: () => requestPlay(),
   onResume: () => requestPlay(),
-  onSelectWeapon: (id) => selectWeapon(id),
+  onSelectLoadout: (picked) => applyLoadout(picked),
   onOpenClass: () => loadAllWeaponSlots(),
 });
-frontend.setWeapons(Object.values(WEAPON_DEFINITIONS).map((definition) => ({
-  id: definition.id,
-  name: definition.name,
-  ready: false,
-})), activeWeaponId);
-for (const card of classCards) {
-  const definition = WEAPON_DEFINITIONS[card.dataset.weaponId];
-  if (!definition) continue;
-  const artId = WEAPON_CARD_ART[definition.id] ?? definition.id;
-  const art = card.querySelector('[data-card-art]');
-  const fireType = card.querySelector('[data-card-fire-type]');
-  const name = card.querySelector('[data-card-name]');
-  const rpm = card.querySelector('[data-card-rpm]');
-  const magazine = card.querySelector('[data-card-mag]');
-  const damage = card.querySelector('[data-card-damage]');
-  if (art) {
-    art.src = `ui/menu_mp_weapons_${artId}_big.png`;
-    art.alt = definition.name;
-  }
-  if (fireType) {
-    fireType.src = `ui/hud/${definition.fireTypeIcon}.png`;
-    fireType.alt = definition.fireTypeIcon.replace('hud_mp_firerate_', '');
-  }
-  if (name) name.textContent = definition.name;
-  if (rpm) rpm.textContent = definition.roundsPerMinute;
-  if (magazine) magazine.textContent = definition.magazineSize;
-  if (damage) damage.textContent = definition.damage;
-}
+frontend.setClasses(WEAPON_CLASS_IDS.map((id) => WEAPON_CLASSES[id]));
+frontend.setWeapons([
+  ...Object.values(WEAPON_DEFINITIONS).map((definition) => ({
+    id: definition.id,
+    name: definition.name,
+    class: definition.class,
+    ready: false,
+  })),
+  // Grenades have no viewmodel to fetch, so they are ready from the start.
+  ...Object.values(EQUIPMENT).map((item) => ({ id: item.id, name: item.name, class: item.class, ready: true })),
+], loadout);
 
 // The title-screen play counter. It fetches on its own and is never awaited by
 // the load, so a blocked request or an endpoint that is not there leaves the
@@ -1231,12 +1283,38 @@ const respawnCopy = document.getElementById('respawn-copy');
 const scoreboard = document.getElementById('scoreboard');
 const scoreboardRows = document.getElementById('scoreboard-rows');
 const matchResult = document.getElementById('match-result');
+const equipmentHud = document.getElementById('hud-equipment');
+function renderEquipmentHud() {
+  for (const count of document.querySelectorAll('[data-equipment-count]')) {
+    const remaining = equipmentAmmo[count.dataset.equipmentCount] ?? 0;
+    count.textContent = remaining;
+    count.closest('button').setAttribute('aria-disabled', String(remaining <= 0));
+  }
+  equipmentHud.replaceChildren(...['lethal', 'tactical'].map((cls) => {
+    const item = EQUIPMENT[loadout[cls]];
+    if (!item) return null;
+    const row = document.createElement('div');
+    row.className = 'hud-equip';
+    row.dataset.empty = String((equipmentAmmo[item.kind] ?? 0) <= 0);
+    const icon = document.createElement('img');
+    icon.src = item.icon;
+    icon.alt = item.name;
+    const count = document.createElement('span');
+    count.textContent = String(equipmentAmmo[item.kind] ?? 0);
+    const key = document.createElement('small');
+    key.textContent = WEAPON_CLASSES[cls].key.replace('Key', '');
+    row.append(icon, count, key);
+    return row;
+  }).filter(Boolean));
+}
+renderEquipmentHud();
 const hudArt = new Hud({
   minimap: document.getElementById('hud-minimap'),
   compass: document.getElementById('hud-compass'),
   ammoRow: document.getElementById('hud-ammo-row'),
   weaponName: document.getElementById('hud-weapon-name'),
   damage: damageOverlay,
+  radar: activeMap.radar,
 });
 const lastEnemyShots = new Map();
 const keys = Object.create(null);
@@ -1266,6 +1344,7 @@ let playerHealth = null;
 let hitmarkerLife = 0;
 let hitmarkerMaxLife = 0.18;
 let automationPaused = false;
+let enemySimulationActive = true;
 let startupMilliseconds = null;
 let frameWorkSampleCount = 0;
 let frameWorkSampleIndex = 0;
@@ -1288,9 +1367,18 @@ const touchControls = new TouchControls({
   onLook: (x, y, sensitivity) => {
     if (!canControlPlayer()) return;
     // CSS pixels make the same thumb gesture independent of device DPI.
-    applyLook(x, y, 0.005 * sensitivity * (viewmodel.aiming ? 0.5 : 1));
+    applyLook(x, y, 0.005 * sensitivity);
   },
-  onAction: (action) => { if (canControlPlayer() && action === 'reload') reloadWeapon(); },
+  onAction: (action, phase) => {
+    if (action === 'frag' && phase === 'cancel') { cancelHeldGrenade(); return; }
+    if (!canControlPlayer()) return;
+    if (action === 'reload') reloadWeapon();
+    if (action === 'switch') switchHeldWeapon();
+    if (action === 'melee') meleeAttack();
+    if (action === 'smoke') beginGrenade('tactical');
+    if (action === 'frag' && phase === 'start') beginGrenade('lethal');
+    if (action === 'frag' && phase === 'release') endGrenade('lethal');
+  },
   onModeChange: () => {
     graphics.mobile = true;
     applyGraphicsSettings();
@@ -1376,6 +1464,7 @@ function canControlPlayer() {
 }
 
 function applyLook(x, y, sensitivity = 0.0022) {
+  sensitivity *= zoomLookScale(camera.fov, SCOPE.hipFov);
   yawPitch.setFromQuaternion(camera.quaternion);
   yawPitch.y -= x * sensitivity;
   yawPitch.x = THREE.MathUtils.clamp(yawPitch.x - y * sensitivity, -Math.PI / 2, Math.PI / 2);
@@ -1409,11 +1498,12 @@ function updateControlHints() {
   frontend.controls = touchControls.mode ? [
     'Left thumb move · Right thumb swipe to look',
     'Hold FIRE and drag to aim · JUMP · RELOAD',
+    'SWITCH guns · MELEE · Hold FRAG to cook, release to throw · Tap SMOKE',
     'Pause for classes and sensitivity · Scores at top right',
   ] : [
     'WASD move · Shift sprint · Space jump · C/Ctrl crouch',
     'Left mouse fire · Right mouse aim · R reload · B respawn',
-    '1 M27 · 2 AN-94 · Create a class from the menu',
+    '1/2 or wheel switch guns · E melee · G frag (hold to cook) · Q smoke',
     'K cycle camo · N navmesh · V collision · P path · Esc pause',
   ];
   frontend.render();
@@ -1427,19 +1517,29 @@ const weaponEffects = new WeaponEffects(scene);
 for (const slot of weaponSlots.values()) {
   const { definition, viewmodel: slotViewmodel } = slot;
   slotViewmodel.onNotetrack = (cue) => {
-    if (cue.type === 'sound') weaponEffects.playFoley(cue.name);
+    // Reload cues come from the foley map; the knife and grenade clips author
+    // world cues (the pin, the swing) that live in the world set instead.
+    if (cue.type === 'sound' && !weaponEffects.playFoley(cue.name)) worldAudio?.play(cue.name, { gain: 0.8 });
   };
+  slotViewmodel.onMeleeStrike = () => { if (activeWeaponId === definition.id) meleeStrike(); };
+  slotViewmodel.onScopeChange = (scoped) => { if (activeWeaponId === definition.id) setScoped(scoped, definition); };
+  slotViewmodel.onThrowRelease = (kind) => { if (activeWeaponId === definition.id) releaseGrenade(kind); };
   slot.controller = new WeaponController({
     magazineSize: definition.magazineSize,
     reserveAmmo: definition.reserveAmmo,
     roundsPerMinute: definition.roundsPerMinute,
+    fireMode: definition.fireMode,
+    burstCount: definition.burstCount,
     initialRoundsPerMinute: definition.initialRoundsPerMinute,
     initialShotCount: definition.initialShotCount,
     onFire: (shot) => {
       if (activeWeaponId === definition.id) fireShot(shot);
     },
     onEmpty: () => {
-      if (activeWeaponId === definition.id) reloadWeapon();
+      if (activeWeaponId !== definition.id) return;
+      // Nothing left to load: the rifle's own dry fire.
+      if (!weapon.canReload) worldAudio?.play(weaponCue(definition.id, 'dryfire_plr'), { gain: 0.8 });
+      reloadWeapon();
     },
   });
 }
@@ -1463,9 +1563,17 @@ function loadWeaponSlot(slot) {
         {
           magazineOffset: definition.magazineOffset,
           magazineRotation: definition.magazineRotation,
+          hiddenTags: definition.hiddenTags,
         },
       );
-      await slotViewmodel.loadClips(definition.clips);
+      // Rifles melee with the knife clips and every gun throws with the M67's.
+      await slotViewmodel.loadClips({
+        ...definition.clips,
+        melee: definition.clips.melee ?? MELEE.clips.swipe,
+        pullPin: THROW_CLIPS.pullPin,
+        throw: THROW_CLIPS.throw,
+      });
+      await attachHeldProps(slotViewmodel);
       filterTextures(slotViewmodel.scene, graphics.anisotropy, renderer.capabilities.getMaxAnisotropy());
       frontend.setWeaponReady(definition.id, true);
     } catch (error) {
@@ -1483,28 +1591,118 @@ function loadAllWeaponSlots() {
   return Promise.all([...weaponSlots.values()].map((slot) => loadWeaponSlot(slot)));
 }
 
+// The knife and the two grenade bodies ride the hands of every viewmodel.
+// Loaded once, cloned per slot.
+let heldPropsLoading = null;
+function loadHeldProps() {
+  if (heldPropsLoading) return heldPropsLoading;
+  heldPropsLoading = (async () => {
+    const manager = new THREE.LoadingManager();
+    manager.setURLModifier((url) => (url.endsWith('.dds') ? `${url.slice(0, -4)}.webp` : url));
+    const propLoader = new GLTFLoader(manager);
+    const load = async (url) => {
+      try {
+        const gltf = await loadGltfAsset(propLoader, url);
+        return gltf.scene;
+      } catch (error) {
+        console.warn(`held prop unavailable: ${url}`, error);
+        return null;
+      }
+    };
+    const [knife, ...bodies] = await Promise.all([
+      load(MELEE.knifeModelUrl),
+      ...Object.values(EQUIPMENT).map((item) => load(item.modelUrl)),
+    ]);
+    knifeScene = knife;
+    Object.values(EQUIPMENT).forEach((item, index) => {
+      if (bodies[index]) grenadeScenes.set(item.kind, bodies[index]);
+    });
+  })();
+  return heldPropsLoading;
+}
+async function attachHeldProps(slotViewmodel) {
+  await loadHeldProps();
+  if (knifeScene) slotViewmodel.attachKnife(knifeScene, MELEE.knifeTag);
+  for (const [kind, scene] of grenadeScenes) slotViewmodel.attachGrenadeModel(kind, scene);
+}
+
+/** Equip a class: the two guns and the two grenades. Returns the loadout. */
+function applyLoadout(picked) {
+  for (const cls of WEAPON_CLASS_IDS) {
+    const id = picked?.[cls];
+    if (!id) continue;
+    if ((cls === 'primary' || cls === 'secondary') && findWeapon(id)?.class === cls) loadout[cls] = findWeapon(id).id;
+    if ((cls === 'lethal' || cls === 'tactical') && EQUIPMENT[id]?.class === cls) loadout[cls] = id;
+  }
+  resetEquipment();
+  renderEquipmentHud();
+  // Bring the primary up if the gun in hand is no longer part of the class.
+  if (activeWeaponId !== loadout.primary && activeWeaponId !== loadout.secondary) selectWeapon(loadout.primary);
+  else if (activeWeaponSlot.definition.class === 'primary' && activeWeaponId !== loadout.primary) selectWeapon(loadout.primary);
+  else if (activeWeaponSlot.definition.class === 'secondary' && activeWeaponId !== loadout.secondary) selectWeapon(loadout.secondary);
+  return { ...loadout };
+}
+
+/** One camo for every slot, so switching guns keeps the skin. */
+function setCamoEverywhere(name) {
+  let applied = false;
+  for (const slot of weaponSlots.values()) {
+    if (slot.viewmodel.setCamo(name)) applied = true;
+  }
+  if (applied) { currentCamo = name; refreshTextureFiltering(); }
+  return applied;
+}
+
+/** The other gun of the class: primary to secondary and back. */
+function switchHeldWeapon(step = 1) {
+  const next = nextHeldWeapon(loadout, activeWeaponId, step);
+  if (!next || next === activeWeaponId) return false;
+  const slot = weaponSlots.get(next);
+  if (!slot?.viewmodel.ready) {
+    // A secondary picked from the menu is fetched on first use.
+    loadWeaponSlot(slot).then(() => { if (canControlPlayer()) selectWeapon(next); });
+    return false;
+  }
+  return selectWeapon(next);
+}
+
 function selectWeapon(id) {
-  const requested = String(id).toLowerCase();
-  const next = weaponSlots.get(WEAPON_ALIASES[requested] ?? requested);
+  const definition = findWeapon(id);
+  const next = definition ? weaponSlots.get(definition.id) : null;
   if (!next?.controller || !next.viewmodel.ready) return false;
   if (next === activeWeaponSlot) return activeWeaponId;
+  // A weapon picked by key becomes that class's slot, so the wheel keeps it.
+  if (definition.class === 'primary' || definition.class === 'secondary') loadout[definition.class] = definition.id;
 
   weapon.setTrigger(false);
   weapon.cancelReload();
-  viewmodel.cancelReload();
-  viewmodel.setAiming(false);
+  viewmodel.resetActions({ preserveChamber: true });
+  throwState = null;
+  viewmodel.resetAiming();
+  setScoped(false, null);
   viewmodel.scene.visible = false;
 
   activeWeaponSlot = next;
   activeWeaponId = next.definition.id;
   weapon = next.controller;
   viewmodel = next.viewmodel;
+  gunplay = next.gunplay;
+  if (viewmodel.pendingRechamber) viewmodel.rechamber();
+  gunplay.spread.reset();
+  gunplay.kick.reset();
+  gunplay.sprint.reset();
   viewmodelProbe.removeFromParent();
   viewmodel.scene.add(viewmodelProbe);
   viewmodel.scene.visible = !playerHealth?.dead;
-  viewmodel.setAiming(false);
+  viewmodel.resetAiming();
+  scopeState.fov = camera.fov = SCOPE.hipFov;
+  camera.updateProjectionMatrix();
   crosshair.classList.remove('ads');
   lastAdsState = false;
+  // Holster the outgoing gun, then bring the new one up; pistols come up fast.
+  const pistol = next.definition.class === 'secondary';
+  worldAudio?.play(pistol ? worldAudio.resolve(['fly_pistol_down_plr', 'fly_generic_down_plr']) : 'fly_generic_down_plr', { gain: 0.6 });
+  setTimeout(() => worldAudio?.play(pistol ? worldAudio.resolve(['fly_pistol_raise_plr', 'fly_generic_raise_plr']) : 'fly_generic_raise_plr', { gain: 0.7 }), pistol ? 150 : 250);
 
   if (globalThis.hijacked) {
     globalThis.hijacked.weapon = weapon;
@@ -1539,11 +1737,19 @@ function resetPlayerLife() {
   }
   player.respawn();
   player.setEnabled(true);
+  worldAudio?.play('fly_generic_first_raise_plr', { gain: 0.7 });
   for (const slot of weaponSlots.values()) {
     slot.controller.resetLoadout();
-    slot.viewmodel.cancelReload();
+    slot.viewmodel.resetActions();
     slot.viewmodel.scene.visible = false;
   }
+  throwState = null;
+  setScoped(false, null);
+  scopeState.breath = scopeState.tired = 0;
+  resetEquipment();
+  renderEquipmentHud();
+  // A new life starts on the primary, as in the game.
+  if (activeWeaponId !== loadout.primary && weaponSlots.get(loadout.primary)?.viewmodel.ready) selectWeapon(loadout.primary);
   viewmodel.scene.visible = true;
   viewmodel.setAiming(false);
   deathSource = null;
@@ -1578,6 +1784,13 @@ function renderMatchUi() {
     killer.className = 'killer';
     killer.textContent = event.killer;
     row.append(killer, document.createTextNode(`  ›  ${event.victim}`));
+    // A long shot shows its range, the way the game calls out the medal.
+    if (event.distance >= LONGSHOT_DISTANCE) {
+      const range = document.createElement('span');
+      range.className = 'range';
+      range.textContent = `${Math.round(metresFromUnits(event.distance))} m`;
+      row.appendChild(range);
+    }
     return row;
   }));
 
@@ -1669,7 +1882,7 @@ const ktx2Loader = new KTX2Loader(loadingManager)
 loader.setKTX2Loader(ktx2Loader);
 loader.setMeshoptDecoder(MeshoptDecoder);
 function loadGltf(url, label) {
-  return loader.loadAsync(url, (event) => progress(label, event)).then((gltf) => {
+  return loadGltfAsset(loader, url, (event) => progress(label, event)).then((gltf) => {
     // Chrome and bare metal need metalness to reflect the environment; without
     // it they render as dark dielectrics and read as black. See lighting.js.
     // Classify before spatial batching so InstancedMesh groups inherit the
@@ -1686,7 +1899,7 @@ function loadGltf(url, label) {
 function chooseSpawn(hints, collision) {
   const spawns = Array.isArray(hints?.spawns) ? hints.spawns : [];
   const preferred = spawns.find((spawn) => spawn.classname === 'mp_dm_spawn') ?? spawns[0];
-  const marker = preferred?.position ?? [2102, 57, 133];
+  const marker = preferred?.position ?? activeMap.fallbackSpawn;
   const spawn = new THREE.Vector3(marker[0], marker[1], marker[2]);
 
   // Radiant spawn entities may sit above their floor. Find the first surface
@@ -1717,8 +1930,13 @@ function clearKeys() {
   for (const code of Object.keys(keys)) keys[code] = false;
   mouseFire = mouseAim = false;
   touchControls.reset();
+  cancelHeldGrenade();
   weapon?.setTrigger(false);
-  viewmodel.setAiming(false);
+  viewmodel.resetAiming();
+  setScoped(false, null);
+  scopeState.holding = false;
+  scopeState.fov = camera.fov = SCOPE.hipFov;
+  camera.updateProjectionMatrix();
 }
 
 // A kill marker outlives a body marker so the confirmation still reads when
@@ -1729,32 +1947,123 @@ function showHitmarker(kind) {
   hitmarkerLife = hitmarkerMaxLife;
 }
 
+// Stance and movement for the spread model: full speed counts as 1.
+function spreadState() {
+  const speed = player ? Math.hypot(player.velocity.x, player.velocity.z) : 0;
+  return {
+    crouched: Boolean(player?.crouched),
+    moveFactor: Math.min(1, speed / 300),
+    aimBlend: viewmodel.aimBlend,
+  };
+}
+
 function fireShot({ triggerShotCount = 0 } = {}) {
   const intro = activeWeaponSlot.definition.initialShotCount > 0 && triggerShotCount === 1;
   if (!viewmodel.fire({ intro })) return;
   if (playerHealth?.protectionTimer > 0) playerHealth.protectionTimer = 0;
-  const hit = weaponEffects.fire(camera, collisionRoot, viewmodel.muzzlePosition(), {
+  // The round leaves inside the current hip or ADS cone and blooms the cone
+  // for the next one; damage falls off with the distance it travelled and the
+  // region it struck, both per the weapon file.
+  const spread = gunplay.spread.sample(spreadState());
+  gunplay.spread.onShot();
+  weaponEffects.fire(camera, collisionRoot, viewmodel.muzzlePosition(), {
     targets: enemies?.hitTargets ?? [],
     weapon: activeWeaponId,
+    spread,
+    penetration: gunplay.ballistics.penetrateType,
   });
-  const damaged = enemies?.handlePlayerHit(hit, activeWeaponSlot.definition.damage);
-  if (damaged) {
-    showHitmarker(damaged.killed ? 'kill' : damaged.region === 'head' ? 'head' : 'torso');
-    weaponEffects.playHitmarker(damaged);
+  // A round can pass thin cover and bodies, so every body it reached takes
+  // its share; the marker reports the best outcome of the lot.
+  let best = null;
+  for (const entry of weaponEffects.lastShot?.hits ?? []) {
+    if (!entry.enemy) continue;
+    const damaged = enemies?.handlePlayerHit(entry.hit, (region, distance) => (
+      damageAtDistance(gunplay.ballistics, distance) * locationMultiplier(gunplay.ballistics, region) * entry.scale
+    ));
+    if (!damaged) continue;
+    const rank = damaged.killed ? 2 : damaged.region === 'head' ? 1 : 0;
+    if (!best || rank > best.rank) best = { ...damaged, rank };
+  }
+  if (best) {
+    showHitmarker(best.killed ? 'kill' : best.region === 'head' ? 'head' : 'torso');
+    weaponEffects.playHitmarker(best);
   }
   enemies?.alert(player.position, 1500, player.position);
 
-  // Move the actual aim slightly as well as playing the authored weapon kick,
-  // so a held burst climbs instead of keeping every ray perfectly stacked.
+  // View kick from the weapon file, on top of the authored weapon animation.
+  // The kick recentres over the next frames in tick(), so a held burst climbs
+  // and then settles instead of walking the aim away for good.
+  const kick = gunplay.kick.onShot({ aimBlend: viewmodel.aimBlend });
+  nudgeView(kick.pitch, kick.yaw);
+}
+
+function nudgeView(pitch, yaw) {
+  if (!pitch && !yaw) return;
   yawPitch.setFromQuaternion(camera.quaternion);
-  const adsScale = 1 - viewmodel.aimBlend * 0.48;
-  yawPitch.x = THREE.MathUtils.clamp(
-    yawPitch.x + (0.0065 + Math.random() * 0.004) * adsScale,
-    -Math.PI / 2,
-    Math.PI / 2,
-  );
-  yawPitch.y += (Math.random() - 0.5) * 0.0035 * adsScale;
+  yawPitch.x = THREE.MathUtils.clamp(yawPitch.x + pitch, -Math.PI / 2, Math.PI / 2);
+  yawPitch.y += yaw;
   camera.quaternion.setFromEuler(yawPitch);
+}
+
+// Which side of the view a shooter is on, for the flinch: -1 left, 1 right.
+function shooterSide(source) {
+  const position = Number.isInteger(source?.index) ? enemies?.targetPosition(source) : null;
+  if (!position) return 0;
+  const forward = camera.getWorldDirection(new THREE.Vector3());
+  const toSource = position.clone().sub(camera.position);
+  return Math.sign(forward.x * toSource.z - forward.z * toSource.x) || 0;
+}
+
+// The overlay comes and goes with the viewmodel's `scoped` flag.
+function setScoped(scoped, definition) {
+  const overlay = scoped ? definition?.scope?.overlay ?? null : null;
+  if (overlay && scopeLens.getAttribute('src') !== overlay) scopeLens.src = overlay;
+  scopeElement.dataset.on = String(Boolean(scoped && overlay));
+  document.body.classList.toggle('scoped', Boolean(scoped));
+  document.getElementById('touch-breath').hidden = !scoped;
+  if (scoped) worldAudio?.play(SCOPE.zoomSound, { gain: 0.6 });
+}
+
+// Every weapon zooms the world with its raise. Scoped weapons also add
+// glass sway, returned in radians for this frame.
+function updateScope(dt, { holdBreath = false, active = true } = {}) {
+  const scope = activeWeaponSlot.definition.scope ?? null;
+  const target = adsFieldOfView(SCOPE.hipFov, scope?.zoomFov ?? gunplay.ballistics.adsZoomFov ?? viewmodel.adsFov, viewmodel.aimBlend);
+  if (target !== scopeState.fov) {
+    scopeState.fov = target;
+    camera.fov = target;
+    camera.updateProjectionMatrix();
+  }
+  if (!scope || !viewmodel.scoped || !active) {
+    scopeState.holding = false;
+    scopeState.breath = Math.max(0, scopeState.breath - dt);
+    scopeState.tired = Math.max(0, scopeState.tired - dt);
+    // The sway restarts from rest on the next raise rather than jumping.
+    scopeState.last = null;
+    scopeState.swayTime = 0;
+    return { pitch: 0, yaw: 0 };
+  }
+  // Breath: Shift holds it for breathHoldSeconds, then the sway returns until
+  // the lungs recover.
+  if (holdBreath && scopeState.tired <= 0) {
+    scopeState.breath = Math.min(SCOPE.breathHoldSeconds, scopeState.breath + dt);
+    scopeState.holding = scopeState.breath < SCOPE.breathHoldSeconds;
+    if (!scopeState.holding) scopeState.tired = SCOPE.breathRecoverSeconds;
+  } else {
+    scopeState.holding = false;
+    scopeState.breath = Math.max(0, scopeState.breath - dt * 2);
+    scopeState.tired = Math.max(0, scopeState.tired - dt);
+  }
+  const steady = scopeState.holding ? SCOPE.breathHoldSwayScale : 1;
+  // A slow figure of eight in the glass, its size from the weapon file.
+  const amplitude = (scope.idleAmount ?? 30) * SCOPE.swayDegreesPerIdle * (Math.PI / 180) * steady;
+  const t = scopeState.swayTime;
+  scopeState.swayTime += dt;
+  const yaw = Math.sin(t * 1.1) * amplitude;
+  const pitch = Math.sin(t * 2.3 + 0.7) * amplitude * 0.6;
+  const previous = scopeState.last ?? { pitch, yaw };
+  scopeState.last = { pitch, yaw };
+  return { pitch: pitch - previous.pitch, yaw: yaw - previous.yaw };
 }
 
 function reloadWeapon() {
@@ -1765,6 +2074,132 @@ function reloadWeapon() {
     return false;
   }
   return true;
+}
+
+// Melee: E swings the knife (rifles) or whips with the pistol. The strike
+// lands meleeDelay into the swing; a target inside the knife's reach cone,
+// or a little past it dead ahead, takes knife_mp's 150 and drops.
+function meleeAttack() {
+  if (!canControlPlayer()) return false;
+  if (weapon.reloading) {
+    weapon.cancelReload();
+    viewmodel.cancelReload();
+  }
+  const knife = activeWeaponSlot.definition.class !== 'secondary';
+  if (!viewmodel.melee({ strikeDelay: MELEE.delay, duration: MELEE.time, knife })) return false;
+  weapon.setTrigger(false);
+  worldAudio?.play(MELEE.sounds.swing, { gain: 0.9 });
+  if (knife) worldAudio?.play(MELEE.sounds.draw, { gain: 0.5 });
+  if (Math.random() < 0.5) worldAudio?.play(MELEE.sounds.exert, { gain: 0.5 });
+  return true;
+}
+
+function meleeStrike() {
+  if (!enemies || !player) return;
+  const forward = camera.getWorldDirection(new THREE.Vector3());
+  const pick = selectMeleeTarget(camera.position, forward, enemies.actors, {
+    range: MELEE.range, lunge: MELEE.lunge, coneDegrees: MELEE.cone,
+  });
+  if (pick) {
+    const { enemy } = pick.target;
+    const applied = enemy.takeDamage(MELEE.damage, null, player);
+    if (applied > 0) {
+      showHitmarker(enemy.dead ? 'kill' : 'torso');
+      weaponEffects.playHitmarker({ region: 'torso', killed: enemy.dead });
+      worldAudio?.play(MELEE.sounds.hitBody, { position: pick.target.position.clone(), gain: 1 });
+      worldAudio?.fleshHit({ region: 'torso', position: pick.target.position.clone() });
+      lastMeleeKill = enemy.dead;
+    }
+    return;
+  }
+  // Nothing in reach: a wall inside the swing takes the blade instead.
+  raycaster.setFromCamera(lookCenter, camera);
+  raycaster.near = 0;
+  raycaster.far = MELEE.range;
+  const wall = collisionRoot ? raycaster.intersectObject(collisionRoot, true)[0] : null;
+  if (wall) worldAudio?.play(MELEE.sounds.hitOther, { position: wall.point.clone(), gain: 0.8 });
+}
+let lastMeleeKill = false;
+
+// Grenades. G pulls the frag's pin and starts its fuse; letting go throws it,
+// so a held frag cooks. Q pops the smoke straight away. Both travel on the
+// weapon file's projectileSpeed and bounce off the world until the fuse ends.
+function beginGrenade(classId) {
+  if (!canControlPlayer() || throwState) return false;
+  const item = EQUIPMENT[loadout[classId]];
+  if (!item || (equipmentAmmo[item.kind] ?? 0) <= 0) return false;
+  if (weapon.reloading) {
+    weapon.cancelReload();
+    viewmodel.cancelReload();
+  }
+  if (!viewmodel.beginThrow(item.kind)) return false;
+  weapon.setTrigger(false);
+  throwState = { item, classId, cookedSeconds: 0, released: false };
+  worldAudio?.play(item.sounds.pin, { gain: 0.8 });
+  return true;
+}
+
+function cancelHeldGrenade() {
+  throwState = null;
+  viewmodel?.finishThrow();
+}
+
+function endGrenade(classId) {
+  if (!throwState || throwState.released) return false;
+  const item = EQUIPMENT[loadout[classId]];
+  if (!item || item.kind !== throwState.item.kind) return false;
+  throwState.released = true;
+  return viewmodel.releaseThrow();
+}
+
+function releaseGrenade(kind) {
+  const state = throwState;
+  throwState = null;
+  if (!state || !grenades || !player) return;
+  const item = state.item;
+  if (item.kind !== kind) return;
+  const cooked = item.cookable ? state.cookedSeconds : 0;
+  const expired = item.cookable && cooked >= item.fuse;
+  const fuse = Math.max(0.05, item.fuse - cooked);
+  const forward = camera.getWorldDirection(new THREE.Vector3());
+  const origin = throwOrigin(camera);
+  const velocity = expired ? new THREE.Vector3() : throwVelocity(forward, item.throwSpeed, player.velocity);
+  equipmentAmmo[item.kind] = Math.max(0, (equipmentAmmo[item.kind] ?? 0) - 1);
+  renderEquipmentHud();
+  worldAudio?.play(item.sounds.throw, { gain: 0.8 });
+  grenades.throw(item, { position: origin, velocity, fuse, owner: player });
+}
+
+// A frag going off: the blast reaches every bot and the player through open
+// air, the view shakes with the blast, and the bots come looking.
+function onGrenadeExplode(grenade, hits) {
+  if (!player) return;
+  const at = grenade.position;
+  for (const { actor, damage } of hits) {
+    const applied = actor.enemy?.takeDamage(damage, null, grenade.owner === player ? player : null) ?? 0;
+    if (applied > 0 && grenade.owner === player) {
+      showHitmarker(actor.enemy.dead ? 'kill' : 'torso');
+      weaponEffects.playHitmarker({ region: 'torso', killed: actor.enemy.dead });
+    }
+  }
+  const spec = grenade.spec;
+  const distance = at.distanceTo(player.position);
+  if (spec.explosionRadius > 0 && distance < spec.explosionRadius && playerHealth) {
+    // Cover shields the player the way it shields a bot.
+    const ray = new THREE.Ray(at.clone(), player.position.clone().sub(at).normalize());
+    const wall = collisionWorld?.raycastFirst(ray, 0.5, distance);
+    if (!wall || wall.distance >= distance - 12) {
+      const t = distance / spec.explosionRadius;
+      const damage = spec.innerDamage + (spec.outerDamage - spec.innerDamage) * t;
+      playerHealth.protectionTimer = 0;
+      playerHealth.takeDamage(damage, null);
+    }
+  }
+  if (spec.explosionRadius > 0 && distance < spec.explosionRadius * 2.5) {
+    const strength = 1 - distance / (spec.explosionRadius * 2.5);
+    nudgeView((Math.random() - 0.5) * 0.06 * strength, (Math.random() - 0.5) * 0.06 * strength);
+  }
+  if (spec.explosionRadius > 0) enemies?.alert(at, 1200, at);
 }
 
 function setDebugVisibility() {
@@ -1793,11 +2228,22 @@ function frameWorkStats() {
   };
 }
 
+// First entry into the match: the spawn sting and the map's ambience.
+function cueMatchStart() {
+  if (matchStartCued) return;
+  matchStartCued = true;
+  music?.play('mus_spawn_short_fbi', { gain: 0.45 });
+  ambience?.start();
+}
+
 function setAutomationActive(active = true) {
   locked = Boolean(active);
   automationPaused = false;
   document.body.classList.toggle('locked', locked);
-  if (locked) frontend.enter();
+  if (locked) {
+    frontend.enter();
+    cueMatchStart();
+  }
   else frontend.suspend();
   if (!locked) {
     clearKeys();
@@ -1814,8 +2260,10 @@ function getDebugState() {
   const size = renderer.getDrawingBufferSize(new THREE.Vector2());
   return {
     ready,
+    map: activeMap.id,
     active: locked,
     paused: automationPaused,
+    enemiesActive: enemySimulationActive,
     input: { touch: touchControls.getState() },
     player: player ? {
       feet: debugVector(feet),
@@ -1845,9 +2293,28 @@ function getDebugState() {
       triggerHeld: weapon.triggerHeld,
       fireCount: weapon.fireCount,
       aiming: viewmodel.aimBlend > 0.5,
+      spreadDegrees: debugRound(gunplay.spread.angleDegrees(spreadState())),
+      sprinting: sprintState.sprinting,
+      sprintOutBlocked: !sprintState.sprinting && !sprintState.canFire,
       camo: viewmodel.camo,
       availableCamos: viewmodel.availableCamos,
+      class: activeWeaponSlot.definition.class,
+      fireMode: weapon.fireMode,
+      meleeing: viewmodel.meleeing,
+      throwing: viewmodel.throwing,
+      scoped: viewmodel.scoped,
+      scopeMounted: Boolean(viewmodel.scopeRoot),
+      rechambering: viewmodel.rechambering,
+      pendingRechamber: viewmodel.pendingRechamber,
+      fov: debugRound(camera.fov),
+      aimBlend: debugRound(viewmodel.aimBlend),
+      adsZoomFov: gunplay.ballistics.adsZoomFov,
+      lookSensitivityScale: debugRound(zoomLookScale(camera.fov, SCOPE.hipFov)),
+      breathHeld: scopeState.holding,
     },
+    loadout: { ...loadout },
+    equipment: { ...equipmentAmmo, live: grenades?.activeCount ?? 0, clouds: grenades?.clouds.length ?? 0,
+      held: throwState?.item.kind ?? null, cookedSeconds: Number((throwState?.cookedSeconds ?? 0).toFixed(3)) },
     enemies: enemies?.enemies.map((enemy) => ({
       index: enemy.index,
       position: debugVector(enemy.root.position),
@@ -1870,6 +2337,9 @@ function getDebugState() {
       combatTarget: debugVector(enemy.combatTarget),
       targetId: enemies?.targetId(enemy.currentTarget) ?? null,
       searchTarget: debugVector(enemy.searchTarget),
+      weapon: enemy.weaponId,
+      camo: enemy.camo,
+      skin: enemy.skin,
       distanceToPlayer: player
         ? debugRound(enemy.root.position.distanceTo(player.position))
         : null,
@@ -1929,6 +2399,11 @@ function createDebugApi() {
     // automation never opens. Awaiting this is the scripted equivalent.
     loadAllWeapons: () => loadAllWeaponSlots(),
     setActive: setAutomationActive,
+    // Isolate input/animation probes from combat without pausing the player.
+    setEnemiesActive(active = true) {
+      enemySimulationActive = Boolean(active);
+      return enemySimulationActive;
+    },
     pause() {
       automationPaused = true;
       clearKeys();
@@ -1954,7 +2429,7 @@ function createDebugApi() {
       return debugVector(camera.getWorldDirection(new THREE.Vector3()));
     },
     showMenu(visible = true) {
-      if (visible) frontend.suspend();
+      if (visible) { clearKeys(); frontend.suspend(); }
       else frontend.enter();
       return frontend.getState();
     },
@@ -1982,9 +2457,28 @@ function createDebugApi() {
       return selectWeapon(id);
     },
     setWeaponCamo(name) {
-      const changed = viewmodel.setCamo(String(name));
-      if (changed) refreshTextureFiltering();
-      return changed ? viewmodel.camo : false;
+      return setCamoEverywhere(String(name)) ? viewmodel.camo : false;
+    },
+    setLoadout(picked) {
+      return applyLoadout(picked ?? {});
+    },
+    switchWeapon(step = 1) {
+      return switchHeldWeapon(Number(step) || 1);
+    },
+    melee() {
+      return meleeAttack();
+    },
+    throwGrenade(classId = 'lethal') {
+      const began = beginGrenade(classId);
+      if (began && EQUIPMENT[loadout[classId]]?.cookable) endGrenade(classId);
+      return began;
+    },
+    // Pin pulled and held (a cooking frag); releaseGrenade() lets it go.
+    cookGrenade(classId = 'lethal') {
+      return beginGrenade(classId);
+    },
+    releaseGrenade(classId = 'lethal') {
+      return endGrenade(classId);
     },
     respawnPlayer() {
       playerHealth?.respawn();
@@ -2032,7 +2526,11 @@ document.addEventListener('pointerlockchange', () => {
   if (locked) {
     frontend.enter();
     playCounter.record().then(renderPlayCount);
-  } else frontend.suspend();
+    cueMatchStart();
+  } else {
+    frontend.suspend();
+    if (match.phase === 'playing') menuCue('uin_main_pause');
+  }
   if (!locked) {
     clearKeys();
     weapon.setTrigger(false);
@@ -2084,8 +2582,12 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (event.code === 'KeyR' && locked) reloadWeapon();
-  if (event.code === 'Digit1' && locked) selectWeapon('m27');
-  if (event.code === 'Digit2' && locked) selectWeapon('an94');
+  // 1 and 2 are the class's two guns; the wheel walks between them too.
+  if (event.code === 'Digit1' && locked && activeWeaponId !== loadout.primary) switchHeldWeapon(1);
+  if (event.code === 'Digit2' && locked && activeWeaponId !== loadout.secondary) switchHeldWeapon(1);
+  if (event.code === 'KeyE' && locked) meleeAttack();
+  if (event.code === 'KeyG' && locked) beginGrenade('lethal');
+  if (event.code === 'KeyQ' && locked) beginGrenade('tactical');
   if (event.code === 'KeyB' && locked) {
     if (playerHealth) playerHealth.respawn();
     else player?.respawn();
@@ -2099,7 +2601,10 @@ document.addEventListener('keydown', (event) => {
     setDebugVisibility();
   }
   if (event.code === 'KeyP') showPathToCrosshair();
-  if (event.code === 'KeyK' && locked) { viewmodel.cycleCamo(); refreshTextureFiltering(); }
+  if (event.code === 'KeyK' && locked) {
+    viewmodel.cycleCamo();
+    setCamoEverywhere(viewmodel.camo);
+  }
   if (event.code === 'Tab') {
     scoreboardHeld = true;
     renderMatchUi();
@@ -2111,17 +2616,34 @@ document.addEventListener('keyup', (event) => {
     scoreboardHeld = false;
     renderMatchUi();
   }
+  // Letting go of G throws the cooked frag.
+  if (event.code === 'KeyG') endGrenade('lethal');
 });
 addEventListener('blur', () => suspendPlay());
 addEventListener('pagehide', () => suspendPlay());
 document.addEventListener('visibilitychange', () => { if (document.hidden) suspendPlay(); });
+// The mouse wheel cycles the class's guns, as in the game.
+let wheelCooldown = 0;
+document.addEventListener('wheel', (event) => {
+  if (!canControlPlayer()) return;
+  event.preventDefault();
+  const now = performance.now();
+  if (now < wheelCooldown || Math.abs(event.deltaY) < 1) return;
+  wheelCooldown = now + 220;
+  switchHeldWeapon(event.deltaY > 0 ? 1 : -1);
+}, { passive: false });
 
 async function start() {
   try {
+    // A map picked by link may not be baked yet. Fail with its name rather
+    // than with whichever asset the loader happened to reach first.
+    if (!activeMap.baked) {
+      throw new Error(`${activeMap.name} (${activeMap.id}) is not exported yet; see README, "Adding a map"`);
+    }
     // Started here so the sky and probes still transfer alongside the map.
     loadEnvironment();
     const navPromise = loadNavigation({
-      source: 'hijacked.navmesh.bin',
+      source: activeMapFiles.navmesh,
       maxAgents: 32,
       debug: false,
       debugDrawer: {},
@@ -2129,25 +2651,30 @@ async function start() {
       console.error('Navigation unavailable:', error);
       return null;
     }).finally(() => frontend.stage('navigation'));
-    // Only the equipped rifle is on the boot path; the rest load from the
+    // Only the class's two guns are on the boot path; the rest load from the
     // class screen. See loadWeaponSlot().
-    const viewmodelPromise = loadWeaponSlot(activeWeaponSlot)
-      .finally(() => frontend.stage('viewmodel'));
+    const viewmodelPromise = Promise.all([
+      loadWeaponSlot(activeWeaponSlot),
+      loadWeaponSlot(weaponSlots.get(loadout.secondary)),
+    ]).finally(() => frontend.stage('viewmodel'));
     const [renderGltf, loadedCollisionWorld, hints, ladders, medalDefs] = await Promise.all([
-      loadGltf('hijacked_optimized.glb', 'map').then((gltf) => {
+      loadGltf(activeMapFiles.render, 'map').then((gltf) => {
         // KTX2 texture decoding is complete when GLTFLoader resolves.
         frontend.stage('textures');
         return gltf;
       }),
-      loadCollisionWorld({ onProgress: (event) => progress('collision', event) })
+      loadCollisionWorld({
+        metadataUrl: activeMapFiles.collisionBvhMeta,
+        onProgress: (event) => progress('collision', event),
+      })
         .finally(() => frontend.stage('collision')),
-      fetch('hijacked_nav_hints.json').then((response) => {
+      fetch(activeMapFiles.navHints).then((response) => {
         if (!response.ok) throw new Error(`nav hints HTTP ${response.status}`);
         return response.json();
       }),
       // Baked by `npm run bake:ladders`; the map export carries no ladder
       // surface flags, so climbing needs these volumes.
-      fetch('hijacked_ladders.json').then((response) => {
+      fetch(activeMapFiles.ladders).then((response) => {
         if (!response.ok) throw new Error(`ladders HTTP ${response.status}`);
         return response.json();
       }).catch((error) => {
@@ -2165,11 +2692,41 @@ async function start() {
       }),
     ]);
     medals = new MedalTracker({ defs: medalDefs });
+    // Tagged before batching so the parts stay their own meshes.
+    destructibles = new Destructibles(renderGltf.scene, { scene });
+    weaponEffects.destructibles = destructibles;
+    // Props the map's registry says to hide (a mis-posed fxanim model), and
+    // the water surfaces' moving shading, both before the static batcher runs.
+    const hiddenNodes = hideMapNodes(renderGltf.scene, activeMap);
+    if (hiddenNodes) console.info(`${activeMap.id}: hid ${hiddenNodes} node(s)`);
+    waterClock = animateWater(renderGltf.scene);
     mapOptimization = optimizeStaticScene(renderGltf.scene);
     scene.add(renderGltf.scene);
+    surfaceProbe = new SurfaceProbe(renderGltf.scene);
+    worldAudio = new WorldAudio(weaponEffects.audio);
+    weaponEffects.world = worldAudio;
+    destructibles.world = worldAudio;
+    weaponEffects.surfaceProbe = surfaceProbe;
+    worldAudio.load().then(() => {
+      music = new MusicPlayer(worldAudio);
+      ambience = new AmbienceManager(worldAudio, hints?.ambience ?? [], { bank: `mpl_${activeMap.prefix}.all` });
+      if (locked && matchStartCued) ambience.start();
+    }).catch((error) => console.warn('World audio unavailable:', error));
     collisionWorld = loadedCollisionWorld;
     collisionRoot = collisionWorld.mesh;
     scene.add(collisionRoot);
+    grenades = new GrenadeManager({
+      scene, collision: collisionWorld, surfaceProbe, onExplode: onGrenadeExplode,
+    });
+    worldAudio.load().then(() => { grenades.world = worldAudio; });
+    loadHeldProps().then(() => {
+      for (const [kind, propScene] of grenadeScenes) grenades.setModel(kind, propScene);
+    });
+
+    // The radar is calibrated from the map's own minimap_corner entities.
+    if (Array.isArray(hints?.minimap?.corners) && hints.minimap.corners.length >= 2) {
+      hudArt.setCalibration(calibrationFromCorners(hints.minimap.corners, activeMap.minimapSpan));
+    }
 
     const spawn = chooseSpawn(hints, collisionRoot);
     camera.quaternion.setFromEuler(new THREE.Euler(0, spawn.yaw, 0, 'YXZ'));
@@ -2193,6 +2750,11 @@ async function start() {
       spawnProtection: 3,
       regenDelay: 4,
       regenPerSecond: 25,
+      // Being hit jolts the view up and away from the shooter.
+      onDamage: ({ amount, source }) => {
+        const flinch = gunplay.kick.flinch(amount, { side: -shooterSide(source) });
+        nudgeView(flinch.pitch, flinch.yaw);
+      },
       onDeath: ({ source }) => {
         clearKeys();
         deathSource = source;
@@ -2224,11 +2786,25 @@ async function start() {
           weaponEffects,
           hints,
           count: 6,
+          // Smoke stands between a bot and its target: it loses sight.
+          sightBlocked: (from, to) => grenades?.smokeBlocks(from, to) ?? false,
           onDeath: (victim, source) => {
-            match.recordKill(combatantId(source), `bot-${victim.index}`);
+            const fell = victim.root.position;
+            const byPlayer = combatantId(source) === 'player';
+            const distance = byPlayer ? player.position.distanceTo(fell) : null;
+            match.recordKill(combatantId(source), `bot-${victim.index}`, distance === null ? null : { distance });
+            worldAudio?.death({ position: fell.clone() });
+            worldAudio?.bodyfall({ surface: surfaceProbe?.surfaceAt(fell), position: fell.clone() });
             // Bot-on-bot kills stay out of the human player's medal chain.
-            if (medals && combatantId(source) === 'player') {
-              for (const def of medals.onKill()) showMedalPopup(def);
+            if (medals && byPlayer) {
+              const earned = medals.onKill();
+              // The game's Long Shot medal, for a kill past LONGSHOT_DISTANCE.
+              const longshot = distance >= LONGSHOT_DISTANCE ? medals.def('longshot_kill') : null;
+              if (longshot) {
+                earned.push(longshot);
+                medals.noteEarned([longshot]);
+              }
+              for (const def of earned) showMedalPopup(def);
             }
           },
         })).load({ onProgress: (label, event) => progress(label, event) })
@@ -2302,7 +2878,11 @@ async function start() {
     // Small read/debug surface for automated smoke tests and map tooling.
     globalThis.hijacked = {
       scene, camera, renderer, player, navigation, collisionRoot, collisionWorld, hints, viewmodel,
-      weapon, weaponEffects, playerHealth, enemies, reloadWeapon, selectWeapon, frontend,
+      weapon, weaponEffects, worldAudio, surfaceProbe, destructibles, playerHealth, enemies, reloadWeapon, selectWeapon, frontend,
+      get grenades() { return grenades; },
+      get loadout() { return { ...loadout }; },
+      get ambience() { return ambience; },
+      get music() { return music; },
       lighting: {
         lightProbe, viewmodelProbe, enemyProbes, sceneSH,
         get probeVolume() { return probeVolume; },
@@ -2318,7 +2898,8 @@ async function start() {
     frontend.setReady([
       'WASD move · Shift sprint · Space jump · C/Ctrl crouch',
       'Left mouse fire · Right mouse aim · R reload · B respawn',
-      '1 M27 · 2 AN-94 · Create a class from the menu',
+      'Wheel or 1/2 switch gun · E melee · G frag (hold to cook) · Q smoke',
+      'Snipers: right mouse scopes · Shift in the scope holds breath',
       'K cycle camo · N navmesh · V collision · P path · Esc pause',
       navigation ? '' : 'Navigation failed to load; collision and walking are still available.',
     ]);
@@ -2349,29 +2930,111 @@ function tick() {
   };
   weapon.setTrigger(controlsActive && (mouseFire || touch.fire));
   viewmodel.setAiming(controlsActive && (mouseAim || touch.aim));
+  const moving = controlsActive && Math.hypot(movement.forward, movement.strafe) > 0;
+  sprintState = gunplay.sprint.update(simulationActive ? dt : 0, {
+    wantsSprint: movement.sprint && moving,
+    triggerHeld: weapon.triggerHeld,
+    aiming: viewmodel.aiming || viewmodel.meleeing || viewmodel.throwing,
+  });
   if (player && simulationActive) {
-    player.update(dt, controlsActive ? movement : {});
+    player.update(dt, controlsActive ? { ...movement, sprint: sprintState.sprinting } : {});
   }
-  if (simulationActive) navigation?.update(1 / 60, dt, 5);
-  enemies?.update(dt, { active: simulationActive });
+  if (simulationActive && enemySimulationActive) navigation?.update(1 / 60, dt, 5);
+  enemies?.update(dt, { active: simulationActive && enemySimulationActive });
   playerHealth?.update(simulationActive ? dt : 0);
   if (simulationActive) match.update(dt);
   weaponEffects.update(dt);
+  destructibles?.update(dt);
+  if (simulationActive) grenades?.update(dt, { actors: enemies?.actors ?? [] });
+  if (simulationActive && throwState) {
+    throwState.cookedSeconds += dt;
+    if (!throwState.item.cookable && throwState.cookedSeconds >= 0.35) endGrenade(throwState.classId);
+    if (throwState?.item.cookable && throwState.cookedSeconds >= throwState.item.fuse) {
+      // A cooked frag expires in the hand too; holding it is not a free pause.
+      releaseGrenade(throwState.item.kind);
+      viewmodel.finishThrow();
+    }
+  }
+  if (waterClock) waterClock.value = clock.elapsedTime;
   // Panned enemy fire is only meaningful while the listener tracks the camera.
   if (simulationActive) weaponEffects.updateListener(camera);
 
   if (player) {
     const p = player.position;
     const speed = Math.hypot(player.velocity.x, player.velocity.z);
-    const moving = controlsActive && Math.hypot(movement.forward, movement.strafe) > 0;
-    const sprinting = movement.sprint && moving;
-
-    viewmodel.update(dt, {
+    const sprinting = sprintState.sprinting;
+    gunplay.spread.update(dt);
+    if (simulationActive && worldAudio && !playerHealth?.dead) {
+      const feet = player.feetPosition;
+      const stride = playerStride.update(feet, { grounded: player.isGrounded, sprinting, dt });
+      if (stride.step && speed > 40) {
+        worldAudio.footstep({
+          surface: surfaceProbe?.surfaceAt(feet),
+          sprinting,
+          walking: speed < 200,
+          crouched: player.crouched,
+        });
+        if (sprinting) {
+          worldAudio.play('fly_cloth_sprint_plr', { gain: 0.35 });
+          worldAudio.play('fly_gear_sprint_plr', { gain: 0.3 });
+        }
+      }
+      if (stride.land) {
+        worldAudio.land({ surface: surfaceProbe?.surfaceAt(feet), drop: stride.drop });
+        if (stride.drop > 140) worldAudio.play('fly_dtp_land_exert_plr', { gain: 0.8 });
+      }
+      ambience?.update(dt, camera.position);
+      // Hurt breathing while health is low, spaced like the game's loop.
+      breathTimer -= dt;
+      if ((playerHealth?.health ?? 100) < 35 && breathTimer <= 0) {
+        worldAudio.play('chr_breathing_hurt', { gain: 0.6 });
+        breathTimer = 2.8;
+      }
+      // Timer music at one minute, a beep for each of the last ten seconds.
+      const remaining = match.remainingSeconds;
+      if (remaining <= 60 && !timerMusicCued) {
+        timerMusicCued = true;
+        music?.play('mus_time_running_out', { gain: 0.4 });
+      }
+      const second = Math.ceil(remaining);
+      if (remaining <= 10 && remaining > 0 && second !== lastTimerBeep) {
+        lastTimerBeep = second;
+        worldAudio.play('mpl_ui_timer_countdown', { ui: true, gain: 0.6, cents: 0 });
+      }
+      for (const enemy of enemies?.enemies ?? []) {
+        let tracker = enemyStrides.get(enemy.index);
+        if (!tracker) {
+          tracker = new StrideTracker({ walkStride: 66 });
+          enemyStrides.set(enemy.index, tracker);
+        }
+        if (enemy.dead) {
+          tracker.reset();
+          continue;
+        }
+        const step = tracker.update(enemy.root.position, { grounded: true, sprinting: false, dt });
+        if (step.step && enemy.movementSpeed > 40) {
+          worldAudio.footstep({
+            surface: surfaceProbe?.surfaceAt(enemy.root.position),
+            npc: true,
+            position: enemy.root.position.clone(),
+          });
+        }
+      }
+    }
+    if (simulationActive) {
+      const recentre = gunplay.kick.update(dt);
+      nudgeView(recentre.pitch, recentre.yaw);
+    }
+    viewmodel.update(simulationActive ? dt : 0, {
       speed,
       grounded: player.isGrounded,
       sprinting,
       moving,
     });
+    // Update the world lens after the weapon blend, so both render the same frame.
+    const sway = updateScope(dt, { holdBreath: Boolean(keys.ShiftLeft || keys.ShiftRight || touch.breath), active: controlsActive });
+    nudgeView(sway.pitch, sway.yaw);
+
     viewBob.update(dt, {
       speed,
       grounded: player.isGrounded,
@@ -2379,7 +3042,7 @@ function tick() {
       moving,
     });
     if (weapon.reloading && !viewmodel.reloading) weapon.finishReload();
-    weapon.update(dt, { canFire: simulationActive && !sprinting && !playerHealth?.dead });
+    weapon.update(dt, { canFire: controlsActive && sprintState.canFire && !viewmodel.meleeing && !viewmodel.throwing && !viewmodel.rechambering && !viewmodel.pendingRechamber });
 
     if (playerHealth?.dead) {
       const sourcePosition = Number.isInteger(deathSource?.index) && !deathSource.dead
@@ -2432,7 +3095,8 @@ function tick() {
           playerHealth?.protectionTimer > 0 ? '  protected' : ''}  ` +
         `enemies ${enemies?.aliveCount ?? 0}/${enemies?.enemies.length ?? 0}\n` +
         `weapon ${viewmodel.ready ? activeWeaponId : 'none'}${viewmodel.reloading ? ' reloading' : ''}  ` +
-        `ammo ${weapon.magazine}/${weapon.reserveAmmo}\n` +
+        `ammo ${weapon.magazine}/${weapon.reserveAmmo}  ` +
+        `frag ${equipmentAmmo.frag ?? 0} smoke ${equipmentAmmo.smoke ?? 0}\n` +
         `nav ${navigation ? (navigationVisible ? 'shown' : 'ready') : 'unavailable'}  ` +
         `collision ${collisionVisible ? 'shown' : 'ready'}  path ${pathPoints}`;
       if (hud.textContent !== nextHud) hud.textContent = nextHud;
@@ -2442,6 +3106,13 @@ function tick() {
   if (match.phase === 'ended' && !matchEndedHandled) {
     clearKeys();
     matchEndedHandled = true;
+    // Result music by the player's placing; a shared top score is a draw.
+    const standings = match.getState().standings;
+    const leader = standings[0];
+    const playerEntry = standings.find((entry) => entry.id === 'player');
+    const tied = standings.filter((entry) => entry.kills === leader?.kills).length > 1;
+    const result = playerEntry && leader?.id === 'player' ? (tied ? 'mus_draw' : 'mus_victory') : 'mus_loss';
+    music?.play(result, { gain: 0.5 });
     player?.setEnabled(false);
     weapon.setTrigger(false);
     viewmodel.setAiming(false);
@@ -2451,6 +3122,7 @@ function tick() {
   if (adsState !== lastAdsState) {
     crosshair.classList.toggle('ads', adsState);
     lastAdsState = adsState;
+    if (simulationActive) worldAudio?.play(adsState ? 'fly_generic_ads_plr' : 'fly_generic_ads_lower_plr', { gain: 0.6 });
   }
 
   if (hitmarkerLife > 0) {

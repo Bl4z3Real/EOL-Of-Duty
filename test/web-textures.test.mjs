@@ -39,7 +39,10 @@ test('every texture the shipped viewmodels reference exists in the web export', 
 });
 
 test('the web image set is entirely the shipped format', () => {
-  const stray = fs.readdirSync(imageDir).filter((name) => !name.endsWith(SHIPPED_SUFFIX));
+  // The camo tiles live in their own subfolder (images/camo/) and are checked below.
+  const stray = fs.readdirSync(imageDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && !entry.name.endsWith(SHIPPED_SUFFIX))
+    .map((entry) => entry.name);
   assert.deepEqual(stray, [], `unconverted images left in the export: ${stray.join(', ')}`);
 });
 
@@ -53,4 +56,17 @@ test('normal maps are encoded losslessly and colour maps are not', () => {
 
   assert.ok(encodeArgs('in.png', 'out.webp', 'normal').join(' ').includes('-lossless 1'));
   assert.ok(encodeArgs('in.png', 'out.webp', 'colour').join(' ').includes('-lossless 0'));
+});
+
+// Every camo the catalog lists has its tile, and every tile is the shipped format.
+test('the weapon camo catalog ships one tile per entry', async () => {
+  const { WEAPON_CAMOS } = await import('../export/web/skins.js');
+  for (const camo of WEAPON_CAMOS) {
+    const file = path.join(repo, 'export', 'web', camo.url.replace(/^\.\//, ''));
+    assert.ok(fs.existsSync(file), `${camo.id} tile missing: ${camo.url}`);
+    assert.ok(camo.url.endsWith(SHIPPED_SUFFIX), `${camo.id} tile should be ${SHIPPED_SUFFIX}`);
+  }
+  const camoDir = path.join(imageDir, 'camo');
+  const stray = fs.readdirSync(camoDir).filter((name) => !name.endsWith(SHIPPED_SUFFIX));
+  assert.deepEqual(stray, []);
 });

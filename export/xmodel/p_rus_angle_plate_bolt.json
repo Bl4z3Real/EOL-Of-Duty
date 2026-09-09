@@ -14,19 +14,19 @@
     "lods": [
         {
             "distance": 200.0,
-            "file": "model_export/p_rus_angle_plate_bolt_lod0.glb"
+            "file": "model_export/p_rus_angle_plate_bolt_lod0.obj"
         },
         {
             "distance": 500.0,
-            "file": "model_export/p_rus_angle_plate_bolt_lod1.glb"
+            "file": "model_export/p_rus_angle_plate_bolt_lod1.obj"
         },
         {
             "distance": 1500.0,
-            "file": "model_export/p_rus_angle_plate_bolt_lod2.glb"
+            "file": "model_export/p_rus_angle_plate_bolt_lod2.obj"
         },
         {
             "distance": 3000.0,
-            "file": "model_export/p_rus_angle_plate_bolt_lod3.glb"
+            "file": "model_export/p_rus_angle_plate_bolt_lod3.obj"
         }
     ],
     "rootBoneName": "p_rus_angle_plate_bolt_lod0",

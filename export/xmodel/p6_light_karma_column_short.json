@@ -14,11 +14,11 @@
     "lods": [
         {
             "distance": 500.0,
-            "file": "model_export/p6_light_karma_column_short_lod0.glb"
+            "file": "model_export/p6_light_karma_column_short_lod0.obj"
         },
         {
             "distance": 3000.0,
-            "file": "model_export/p6_light_karma_column_short_lod1.glb"
+            "file": "model_export/p6_light_karma_column_short_lod1.obj"
         }
     ],
     "rootBoneName": "p6_light_karma_column_short_lod0",

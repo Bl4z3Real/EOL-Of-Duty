@@ -4,12 +4,12 @@
   "coordinateSystem": "three-y-up",
   "source": "export/web/hijacked_collision.gltf",
   "geometry": {
-    "vertices": 199986,
-    "triangles": 207092
+    "vertices": 201475,
+    "triangles": 208616
   },
   "bounds": {
     "min": [
-      -3515.728303442707,
+      -3515.7283414264234,
       -499.77099609375,
       -999.5180053710938
     ],
@@ -245,5 +245,5 @@
     "total": 402,
     "projected": 400
   },
-  "byteLength": 357800
+  "byteLength": 355232
 }

@@ -4,10 +4,12 @@ import path from 'node:path';
 import process from 'node:process';
 import { chromium } from 'playwright-core';
 import { runMobileStartup, runMobileTest } from './mobile-game.mjs';
+import { runAdsTest } from './ads-game.mjs';
+import { runSniperTest } from './sniper-game.mjs';
 import { runGraphicsTest } from './graphics-game.mjs';
 
 const root = process.cwd();
-const webRoot = path.resolve(root, 'export', 'web');
+const webRoot = path.resolve(root, process.env.AI_GAME_WEB_ROOT ?? 'export/web');
 const artifactRoot = path.resolve(root, process.env.AI_GAME_ARTIFACT_DIR ??
   (process.argv[2] === 'mobile-test' ? 'artifacts/ai-mobile' : process.argv[2] === 'graphics-test' ? 'artifacts/ai-graphics' : 'artifacts/ai-game'));
 const command = process.argv[2] ?? 'help';
@@ -20,9 +22,11 @@ const commandOption = process.argv[4];
 // presses a key (see the boot gate in index.html). This harness drives the page
 // through `globalThis.hijacked` without ever generating input, so it asks for
 // the old load-on-sight behaviour explicitly.
-function autostartUrl(url) {
+// AI_GAME_MAP selects a map from export/web/maps.js; the default is Hijacked.
+function autostartUrl(url, { autostart = true } = {}) {
   const parsed = new URL(url);
-  parsed.searchParams.set('autostart', '1');
+  if (autostart) parsed.searchParams.set('autostart', '1');
+  if (process.env.AI_GAME_MAP) parsed.searchParams.set('map', process.env.AI_GAME_MAP);
   return String(parsed);
 }
 
@@ -48,14 +52,19 @@ Usage:
   npm run ai:game -- test
   npm run ai:game -- enemy-test
   npm run ai:game -- life-test
+  npm run ai:game -- ads-test
+  npm run ai:game -- sniper-test
   npm run ai:game -- mobile-test
   npm run ai:game -- graphics-test [fallback]
-  npm run ai:game -- record [seconds] [weapon]
+  npm run ai:game -- record [seconds] [weapon|sprint|ads]
 
 Environment:
   AI_GAME_HEADED=1             Show the controlled browser window
   AI_GAME_MOBILE=1             Use a high-density touch viewport (also for record)
+  AI_GAME_ANGLE=d3d11          Use the Windows GPU instead of default SwiftShader
   AI_GAME_ARTIFACT_DIR=<path>  Override artifacts/ai-game
+  AI_GAME_WEB_ROOT=<path>      Serve a staged build instead of export/web
+  AI_GAME_MAP=<id>             Load a map from export/web/maps.js (default mp_hijacked)
   BROWSER_PATH=<path>          Override Chrome or Edge executable
   BROWSER_TEST_URL=<url>       Use an already-running game server
 `;
@@ -68,6 +77,10 @@ function findBrowser() {
     'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
     'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
     'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+    '/usr/bin/google-chrome',
+    '/usr/bin/microsoft-edge',
   ].filter(Boolean);
   return candidates.find((candidate) => fs.existsSync(candidate));
 }
@@ -135,7 +148,7 @@ async function run() {
     process.stdout.write(usage());
     return;
   }
-  if (!['state', 'screenshot', 'test', 'enemy-test', 'life-test', 'mobile-test', 'graphics-test', 'record'].includes(command)) {
+  if (!['state', 'screenshot', 'test', 'enemy-test', 'life-test', 'mobile-test', 'graphics-test', 'sniper-test', 'ads-test', 'record'].includes(command)) {
     throw new Error(`Unknown command: ${command}\n\n${usage()}`);
   }
 
@@ -145,7 +158,7 @@ async function run() {
 
   const ownedServer = process.env.BROWSER_TEST_URL ? null : await staticServer();
   const baseUrl = process.env.BROWSER_TEST_URL ?? ownedServer.url;
-  const gameUrl = command === 'mobile-test' ? baseUrl : autostartUrl(baseUrl);
+  const gameUrl = autostartUrl(baseUrl, { autostart: command !== 'mobile-test' });
   const consoleMessages = [];
   const errors = [];
   const recordSeconds = Math.max(1, Math.min(60, Number(commandArgument) || 5));
@@ -169,7 +182,7 @@ async function run() {
       args: [
         '--enable-webgl',
         '--ignore-gpu-blocklist',
-        '--use-angle=swiftshader',
+        `--use-angle=${process.env.AI_GAME_ANGLE ?? 'swiftshader'}`,
         '--disable-background-timer-throttling',
         '--disable-renderer-backgrounding',
         '--disable-backgrounding-occluded-windows',
@@ -208,9 +221,7 @@ async function run() {
     page.on('requestfailed', (request) => {
       const entry = `[requestfailed] ${request.url()} ${request.failure()?.errorText ?? ''}`;
       consoleMessages.push(entry);
-      // Chrome reports in-flight streaming responses as aborted when the page
-      // closes, even after the corresponding glTF has loaded successfully.
-      if (!entry.includes('net::ERR_ABORTED')) errors.push(entry);
+      errors.push(entry);
     });
 
     if (command === 'mobile-test') {
@@ -245,7 +256,11 @@ async function run() {
     await writeJson('before-state.json', before);
     await page.screenshot({ path: path.join(artifactRoot, 'before.png') });
 
-    if (command === 'mobile-test') {
+    if (command === 'ads-test') {
+      inputProbe = await runAdsTest(page, artifactRoot);
+    } else if (command === 'sniper-test') {
+      inputProbe = await runSniperTest(page, artifactRoot);
+    } else if (command === 'mobile-test') {
       inputProbe = await runMobileTest(page, artifactRoot);
     } else if (command === 'graphics-test') {
       inputProbe = await runGraphicsTest(page, artifactRoot, commandArgument === 'fallback');
@@ -342,18 +357,46 @@ async function run() {
         { timeout: 20_000 },
       );
       await page.evaluate(() => globalThis.hijacked.debug.pause());
+    } else if (command === 'record' && commandOption === 'ads') {
+      const started = Date.now();
+      inputProbe = await runAdsTest(page, artifactRoot, { weaponIds: ['m27', 'fiveseven'] });
+      await page.waitForTimeout(Math.max(0, recordSeconds * 1000 - (Date.now() - started)));
     } else if (command === 'record') {
-      if (commandOption) {
+      const sprintProbe = commandOption === 'sprint';
+      const recordWeapon = sprintProbe ? 'scar' : commandOption;
+      if (recordWeapon) {
         const selected = await page.evaluate(
           (name) => globalThis.hijacked.debug.selectWeapon(name),
-          commandOption,
+          recordWeapon,
         );
-        if (selected !== commandOption) throw new Error(`Could not select weapon: ${commandOption}`);
+        if (selected !== recordWeapon) throw new Error(`Could not select weapon: ${recordWeapon}`);
+      }
+      if (sprintProbe) {
+        await page.mouse.move(640, 40);
+        await page.evaluate(() => {
+          const debug = globalThis.hijacked.debug;
+          debug.setEnemiesActive(false);
+          const eye = debug.getState().player.eye;
+          debug.lookAt([eye[0] - 1000, eye[1], eye[2]]);
+        });
       }
       await page.evaluate(() => globalThis.hijacked.debug.resume());
       await page.keyboard.down('w');
       let fireMilliseconds = 0;
-      if (commandOption) {
+      if (sprintProbe) {
+        await page.keyboard.down('Shift');
+        await page.waitForTimeout(750);
+        await page.screenshot({ path: path.join(artifactRoot, 'sprint-forward.png') });
+        await page.mouse.move(640, 690, { steps: 12 });
+        const down = await page.evaluate(() => globalThis.hijacked.debug.getState());
+        await writeJson('sprint-down-state.json', down);
+        await page.screenshot({ path: path.join(artifactRoot, 'sprint-down.png') });
+        inputProbe = { checks: {
+          sprinting: down.weapon.sprinting,
+          lookingDown: down.player.forward[1] < -0.9,
+        } };
+        fireMilliseconds = 1000;
+      } else if (commandOption) {
         fireMilliseconds = Math.min(750, recordSeconds * 500);
         await page.mouse.down({ button: 'left' });
         await page.waitForTimeout(fireMilliseconds);
@@ -362,6 +405,7 @@ async function run() {
       }
       await page.waitForTimeout(Math.max(0, recordSeconds * 1000 - fireMilliseconds));
       await page.keyboard.up('w');
+      if (sprintProbe) await page.keyboard.up('Shift');
       await page.evaluate(() => globalThis.hijacked.debug.pause());
     }
 
@@ -369,7 +413,7 @@ async function run() {
     await writeJson('state.json', state);
     await page.screenshot({ path: path.join(artifactRoot, 'screenshot.png') });
 
-    const checks = ['mobile-test', 'graphics-test'].includes(command) ? {
+    const checks = ['mobile-test', 'graphics-test', 'sniper-test', 'ads-test'].includes(command) ? {
       ...startupChecks,
       ...inputProbe.checks,
       noBrowserErrors: errors.length === 0,
@@ -401,6 +445,7 @@ async function run() {
       safeSpawnChanged: distance(inputProbe.before.player.feet, state.player.feet) > 100,
       noBrowserErrors: errors.length === 0,
     } : {
+      ...(inputProbe?.checks ?? {}),
       ready: state.ready === true,
       playerAvailable: Boolean(state.player),
       sixEnemiesLoaded: state.enemies.length === 6,

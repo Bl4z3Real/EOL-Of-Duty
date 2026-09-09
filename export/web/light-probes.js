@@ -170,13 +170,16 @@ export function attachObjectProbe(root) {
   };
 }
 
-export async function loadProbeVolume(baseUrl = '') {
+export async function loadProbeVolume({
+  layoutUrl = 'hijacked_probes.json',
+  dataUrl = 'hijacked_probes.bin',
+} = {}) {
   const [layout, buffer] = await Promise.all([
-    fetch(`${baseUrl}hijacked_probes.json`).then((r) => {
+    fetch(layoutUrl).then((r) => {
       if (!r.ok) throw new Error(`probe layout HTTP ${r.status}`);
       return r.json();
     }),
-    fetch(`${baseUrl}hijacked_probes.bin`).then((r) => {
+    fetch(dataUrl).then((r) => {
       if (!r.ok) throw new Error(`probe data HTTP ${r.status}`);
       return r.arrayBuffer();
     }),

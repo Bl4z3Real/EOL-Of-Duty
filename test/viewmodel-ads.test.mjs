@@ -322,3 +322,55 @@ test('a brief loss of ground contact, as on a stair riser, does not stop the wal
   for (let i = 0; i < 60; i += 1) viewmodel.update(1 / 60, { ...walk, grounded: false });
   assert.ok(viewmodel.bobAmp < 0.01, 'a real jump still fades the stride');
 });
+
+
+test('holstering cancels a delayed melee but preserves the required bolt cycle; respawn clears both', () => {
+  const vm = new Viewmodel();
+  vm.ready = true;
+  let strikes = 0;
+  vm.onMeleeStrike = () => strikes++;
+  vm.meleeing = vm.pendingRechamber = true;
+  vm.meleeStrikeAt = 0.01;
+  vm.meleeTimer = 0.8;
+  vm.meleeStruck = false;
+  vm.resetActions({ preserveChamber: true });
+  vm.update(0.2);
+  assert.equal(strikes, 0);
+  assert.equal(vm.pendingRechamber, true);
+  vm.resetActions();
+  assert.equal(vm.pendingRechamber, false);
+});
+
+test('interrupting scoped aim immediately restores the rig and resets the next raise', () => {
+  const vm = new Viewmodel();
+  vm.root = new THREE.Object3D();
+  vm.root.visible = false;
+  vm.aiming = vm.scoped = true;
+  vm.aimBlend = vm.adsTransition.t = 1;
+  const changes = [];
+  vm.onScopeChange = value => changes.push(value);
+  vm.resetAiming();
+  assert.equal(vm.root.visible, true);
+  assert.equal(vm.scoped, false);
+  assert.equal(vm.aimBlend, 0);
+  assert.equal(vm.adsTransition.value, 0);
+  assert.deepEqual(changes, [false]);
+});
+
+test('pistol irons align without a sight marker in the model', () => {
+  const { viewmodel, jGun, tagSights } = buildRig();
+  tagSights.removeFromParent();
+  viewmodel.computeAdsAlignment();
+  const { front, rear } = aimedSights(viewmodel, jGun);
+  assert.ok(Math.hypot(front.x, front.y, rear.x, rear.y) < 1e-6);
+});
+
+test('rear night-sight dots sharing the front material do not move the front anchor', () => {
+  const { viewmodel, jGun } = buildRig();
+  jGun.add(new THREE.Mesh(quad([
+    0.4, -0.2, 5.0, 0.4, 0.2, 5.0, 0.4, 0.2, 5.15, 0.4, -0.2, 5.15,
+  ]), new THREE.MeshBasicMaterial({ name: 'mc/mtl_t6_attach_tritium_red' })));
+  viewmodel.root.updateMatrixWorld(true);
+  const actual = jGun.worldToLocal(viewmodel.findSightTip(jGun));
+  assert.ok(actual.distanceTo(new THREE.Vector3(...FRONT_TIP)) < 1e-5);
+});

@@ -36,6 +36,8 @@ function authoredSoundCues() {
 // because playFoley treats a missing buffer as a no-op. This walks the actual
 // authored notetracks rather than a hand-kept list so a newly exported weapon
 // cannot introduce a mute cue unnoticed.
+const worldAliases = JSON.parse(fs.readFileSync(resolveWebUrl('./audio/world-map.json'), 'utf8')).aliases ?? {};
+
 test('every authored reload cue resolves to a sample that ships', () => {
   const cues = authoredSoundCues();
   assert.ok(cues.size > 0, 'clips should author sound notetracks');
@@ -47,6 +49,10 @@ test('every authored reload cue resolves to a sample that ships', () => {
       assert.equal(FOLEY_URLS[cue], undefined, `${cue} is unmapped in the game and should ship no sample`);
       continue;
     }
+    // Melee and grenade clips author world cues (the pin, the swing) that the
+    // world set carries rather than the reload foley map; index.html falls
+    // through to it when the foley map has no entry.
+    if (worldAliases[cue]) continue;
     const target = FOLEY_ALIASES[cue] ?? cue;
     const urls = FOLEY_URLS[target];
     assert.ok(urls, `cue ${cue} (used by ${clips.join(', ')}) has no sample or alias`);

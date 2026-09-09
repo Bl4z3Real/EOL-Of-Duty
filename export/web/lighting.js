@@ -98,12 +98,13 @@ function sampleHorizonFromTexture(cube) {
   return new THREE.Color(r / n / 255, g / n / 255, b / n / 255).convertSRGBToLinear();
 }
 
-// mp_hijacked_lut_win.dds is the vision set's colour grade, measured layout:
+// The map's *_lut_win image is the vision set's colour grade, measured layout:
 // 32 tiles of 32px across (blue), red along x within a tile, green down y.
-// The 64 rows are two stacked 32-level tables - rows 0-31 are the graded pass
-// (mean deviation from identity 5.8) and rows 32-63 a near-identity one (3.0).
-// Rows 0-31 are used. Blue slices and green rows are both interpolated so the
-// grade does not band.
+// The strip stacks several 32-row tables - Hijacked's 64 rows are the graded
+// pass (mean deviation from identity 5.8) over a near-identity one (3.0),
+// Nuketown's 96 rows hold three. Rows 0-31 are used; `lutRows` carries the
+// strip height so the v coordinate lands in that table for any strip. Blue
+// slices and green rows are both interpolated so the grade does not band.
 // This is the output pass, not just a grade. THREE only compiles tone mapping
 // into materials when rendering to the canvas - for a render target it forces
 // NoToneMapping - so a scene drawn into an offscreen target arrives here raw
@@ -114,6 +115,7 @@ export const POST_SHADER = {
   uniforms: {
     tDiffuse: { value: null },
     lut: { value: null },
+    lutRows: { value: 64 },
     amount: { value: 1 },
     exposure: { value: 1 },
     toneMap: { value: 1 },
@@ -131,6 +133,7 @@ export const POST_SHADER = {
   fragmentShader: /* glsl */`
     uniform sampler2D tDiffuse;
     uniform sampler2D lut;
+    uniform float lutRows;
     uniform float amount;
     uniform float exposure;
     uniform float toneMap;
@@ -198,9 +201,9 @@ export const POST_SHADER = {
       float red = c.r * 31.0;
       float u0 = (b0 * 32.0 + 0.5 + red) / 1024.0;
       float u1 = (min(b0 + 1.0, 31.0) * 32.0 + 0.5 + red) / 1024.0;
-      // the cube occupies the top 32 rows of the 64-row strip
-      float v0 = (g0 + 0.5) / 64.0;
-      float v1 = (min(g0 + 1.0, 31.0) + 0.5) / 64.0;
+      // the cube occupies the top 32 rows of the strip
+      float v0 = (g0 + 0.5) / lutRows;
+      float v1 = (min(g0 + 1.0, 31.0) + 0.5) / lutRows;
       vec3 s0 = mix(texture2D(lut, vec2(u0, v0)).rgb, texture2D(lut, vec2(u0, v1)).rgb, gf);
       vec3 s1 = mix(texture2D(lut, vec2(u1, v0)).rgb, texture2D(lut, vec2(u1, v1)).rgb, gf);
       return mix(s0, s1, bf);
@@ -232,6 +235,9 @@ export const POST_SHADER = {
 // of names contain "metal" while being painted or plastic, and those really are
 // rough dielectrics.
 export const MATERIAL_CLASSES = [
+  // Water reads its reflection off the sky probe; the motion comes from
+  // animateWaterMaterial below, matched on the same names.
+  { match: /water_ocean|water_karma_pool|water_river|water_lake|water_sea|jun_ter_water/i, metalness: 0.02, roughness: 0.08 },
   { match: /painted|whitetrim|plastic|rubber|wood|fabric|leather/i, metalness: 0, roughness: 0.9 },
   { match: /chrome/i, metalness: 1, roughness: 0.16 },
   { match: /brushed/i, metalness: 1, roughness: 0.45 },
@@ -257,6 +263,73 @@ export function classifyMaterial(name) {
   return null;
 }
 
+export const WATER_MATERIAL_PATTERN = /water_ocean|water_karma_pool|water_river|water_lake|water_sea|jun_ter_water/i;
+
+// Water surfaces in the export are a flat textured plane: the map's normal
+// maps were never carried through the bake, so the ocean sat as matte paint.
+// This gives the water a moving surface without a rebake: two sets of low
+// frequency waves perturb the shading normal in the fragment shader and the
+// colour map drifts slowly. The pool material has no colour map at all in the
+// source, so it gets a tinted, translucent water colour here.
+export function animateWaterMaterial(material, { time } = {}) {
+  if (!material || material.userData.water) return false;
+  material.userData.water = true;
+  const uniform = time ?? { value: 0 };
+  material.userData.waterTime = uniform;
+  if (/karma_pool/i.test(material.name) && !material.map) {
+    material.color.set(0x3f7f8c);
+    material.transparent = true;
+    material.opacity = 0.72;
+    material.depthWrite = false;
+  }
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uWaterTime = uniform;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vWaterWorld;')
+      .replace('#include <worldpos_vertex>', '#include <worldpos_vertex>\nvWaterWorld = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uWaterTime;\nvarying vec3 vWaterWorld;')
+      .replace('#include <normal_fragment_maps>', `#include <normal_fragment_maps>
+        {
+          // Two wave trains at different scales and headings, in world inches.
+          vec2 p = vWaterWorld.xz;
+          float t = uWaterTime;
+          float wa = sin(dot(p, vec2(0.011, 0.007)) + t * 0.9) + 0.6 * sin(dot(p, vec2(-0.006, 0.013)) + t * 1.3);
+          float wb = sin(dot(p, vec2(0.029, -0.021)) + t * 1.7) + 0.5 * sin(dot(p, vec2(0.017, 0.024)) - t * 1.1);
+          vec3 bump = normalize(vec3(wa * 0.06 + wb * 0.03, 1.0, wa * 0.05 - wb * 0.035));
+          // Blend the bump into the shading normal; the plane is horizontal so
+          // the tangent frame is world axes.
+          normal = normalize(mix(normal, bump, 0.55));
+        }`)
+      .replace('#include <map_fragment>', `
+        #ifdef USE_MAP
+          vec2 waterUv = vMapUv + vec2(uWaterTime * 0.004, uWaterTime * 0.0025);
+          vec4 sampledDiffuseColor = texture2D( map, waterUv );
+          diffuseColor *= sampledDiffuseColor;
+        #endif`);
+  };
+  material.needsUpdate = true;
+  return true;
+}
+
+/**
+ * Attach the water animation to every water material under `root`, sharing
+ * one time uniform the caller advances each frame. Returns the uniform.
+ */
+export function animateWater(root, time = { value: 0 }) {
+  const seen = new Set();
+  root?.traverse((object) => {
+    if (!object.isMesh) return;
+    const list = Array.isArray(object.material) ? object.material : [object.material];
+    for (const material of list) {
+      if (!material || seen.has(material) || !WATER_MATERIAL_PATTERN.test(material.name ?? '')) continue;
+      seen.add(material);
+      animateWaterMaterial(material, { time });
+    }
+  });
+  return time;
+}
+
 /**
  * Reclassify a loaded subtree's materials so metals reflect the environment.
  * Returns how many were changed.
@@ -271,6 +344,14 @@ export function applyMaterialClasses(root) {
       if (!material || seen.has(material)) continue;
       seen.add(material);
       if (material.metalness === undefined) continue; // not a PBR material
+      // Carpets, rugs and decal layers are authored coplanar with the surface
+      // under them and rely on the engine's depth bias; give them one here.
+      if (/carpet|rug|decal/i.test(material.name)) {
+        material.polygonOffset = true;
+        material.polygonOffsetFactor = -1;
+        material.polygonOffsetUnits = -2;
+        material.needsUpdate = true;
+      }
       const cls = classifyMaterial(material.name);
       if (!cls) continue;
       material.metalness = cls.metalness;
@@ -306,9 +387,13 @@ export function visionTone(grade, { liftScale = 1, tintStrength = 0.35 } = {}) {
   };
 }
 
-/** Load the grading LUT texture, or null if it is not present. */
+/** Load the grading LUT texture, or null if it is not present or not named. */
 export function loadGradeLut(url = 'textures/mp_hijacked_lut.png') {
   return new Promise((resolve) => {
+    if (!url) {
+      resolve(null);
+      return;
+    }
     new THREE.TextureLoader().load(
       url,
       (texture) => {

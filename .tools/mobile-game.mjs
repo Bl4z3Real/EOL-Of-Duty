@@ -8,7 +8,7 @@ export async function runMobileStartup(page, artifactRoot, url) {
   const checks = {};
   const observations = {};
   let mapRequests = 0;
-  const countMap = request => { if (new URL(request.url()).pathname.endsWith('/hijacked_optimized.glb')) mapRequests++; };
+  const countMap = request => { if (new URL(request.url()).pathname.endsWith('_optimized.glb')) mapRequests++; };
   page.on('request', countMap);
   let releaseModule;
   let pendingModule;
@@ -114,19 +114,25 @@ export async function runMobileTest(page, artifactRoot) {
   };
   const wait = (predicate) => page.waitForFunction(predicate, null, { timeout: 45000 });
   const buttonsFit = async () => page.locator('#touch-controls button').evaluateAll(buttons =>
-    buttons.every(button => {
+    buttons.filter(button => !button.hidden).every(button => {
       const r = button.getBoundingClientRect();
       return r.width >= 44 && r.height >= 44 && r.left >= 0 && r.top >= 0 &&
         r.right <= innerWidth && r.bottom <= innerHeight;
     }));
 
-  await page.evaluate(() => globalThis.hijacked.debug.setActive(false));
+  // Combat has its own encounter suite; random deaths must not eat input.
+  await page.evaluate(() => {
+    globalThis.hijacked.debug.setEnemiesActive(false);
+    globalThis.hijacked.debug.setActive(false);
+  });
   await shot('menu-landscape');
+  check('combatIsolated', !(await state()).enemiesActive);
   const started = await tap('[data-action="resume"]', 'landscape');
   await wait(() => globalThis.hijacked.debug.getState().input.touch.enabled);
   check('touchStartsWithoutPointerLock', started.active && started.input.touch.mode &&
     await page.evaluate(() => document.pointerLockElement === null));
   check('landscapeTargetsFit', await buttonsFit());
+  check('mapPickerAccessible', await page.locator('.fe-map').count() === 2);
 
   const origin = await center('.touch-stick');
   const beforeMove = await state();
@@ -201,6 +207,47 @@ export async function runMobileTest(page, artifactRoot) {
   const reloaded = await shot('reloaded');
   check('reloadCompletes', reloaded.weapon.magazine === reloaded.weapon.magazineSize);
 
+  await tap('[data-touch="switch"]', 'secondary',
+    () => globalThis.hijacked.debug.getState().weapon.class === 'secondary');
+  check('touchSwitchesToPistol', (await state()).weapon.class === 'secondary');
+  await tap('[data-touch="melee"]', 'pistol-melee');
+  check('touchMelee', (await state()).weapon.meleeing);
+  await wait(() => !globalThis.hijacked.debug.getState().weapon.meleeing);
+  await shot('melee-finished');
+  await tap('[data-touch="switch"]', 'primary',
+    () => globalThis.hijacked.debug.getState().weapon.class === 'primary');
+  // Aim above the map so the thrown grenade does not bounce into the player.
+  await page.evaluate(() => {
+    const debug = globalThis.hijacked.debug;
+    debug.respawnPlayer();
+    const player = debug.getState().player;
+    debug.lookAt(player.eye.map((v, i) => v + (i === 1 ? 1000 : player.forward[i] * 1000)));
+  });
+  await shot('equipment-setup');
+  await contact('touchStart', 4, await center('[data-touch="frag"]'));
+  await wait(() => globalThis.hijacked.debug.getState().equipment.cookedSeconds > 0.2);
+  const cooking = await shot('frag-cooking');
+  check('touchCooksFrag', cooking.equipment.held === 'frag' && cooking.equipment.frag === 1);
+  points.clear();
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+  const cancelledFrag = await shot('frag-cancelled');
+  check('cancelKeepsFrag', cancelledFrag.equipment.held === null && cancelledFrag.equipment.frag === 1);
+  await contact('touchStart', 4, await center('[data-touch="frag"]'));
+  await shot('frag-held');
+  await contact('touchEnd', 4);
+  await wait(() => globalThis.hijacked.debug.getState().equipment.frag === 0);
+  const thrownFrag = await shot('frag-thrown');
+  check('touchThrowsFrag', thrownFrag.equipment.live > 0);
+  await wait(() => !globalThis.hijacked.debug.getState().weapon.throwing);
+  await tap('[data-touch="smoke"]', 'smoke-pin');
+  await wait(() => globalThis.hijacked.debug.getState().equipment.smoke === 0);
+  await shot('smoke-thrown');
+  await wait(() => globalThis.hijacked.debug.getState().equipment.clouds > 0);
+  const smoke = await shot('smoke-cloud');
+  check('touchSmokeCreatesCloud', smoke.equipment.clouds > 0);
+  await page.evaluate(() => globalThis.hijacked.debug.respawnPlayer());
+  await shot('equipment-restored');
+
   await contact('touchStart', 1, await center('.touch-stick'));
   await contact('touchStart', 2, await center('[data-touch="fire"]'));
   await shot('cancel-setup');
@@ -272,7 +319,10 @@ export async function runMobileTest(page, artifactRoot) {
   }
   await page.setViewportSize({ width: 844, height: 390 });
   await shot('landscape-final');
-  await page.evaluate(() => globalThis.hijacked.debug.pause());
+  await page.evaluate(() => {
+    globalThis.hijacked.debug.pause();
+    globalThis.hijacked.debug.setEnemiesActive(true);
+  });
   await shot('final');
   return { checks, states: Object.keys(states) };
 }

@@ -85,3 +85,30 @@ test('a new life restores the complete loadout and clears weapon activity', () =
   assert.equal(weapon.triggerHeld, false);
   assert.equal(weapon.reloading, false);
 });
+
+test('semi-automatic and burst weapons spend one pull and wait out the cadence', () => {
+  const single = new WeaponController({ roundsPerMinute: 625, fireMode: 'single' });
+  single.setTrigger(true);
+  assert.equal(single.update(0.001), 1, 'one round per pull');
+  assert.equal(single.update(0.5), 0, 'holding the trigger fires nothing more');
+  single.setTrigger(false);
+  single.setTrigger(true);
+  assert.equal(single.update(0.001), 1, 'a fresh pull fires again');
+  single.setTrigger(false);
+  single.setTrigger(true);
+  assert.equal(single.update(0.001), 0, 'tapping inside the cooldown waits for the cadence');
+  assert.equal(single.update(0.1), 1);
+
+  const burst = new WeaponController({ roundsPerMinute: 938, fireMode: 'burst', burstCount: 3 });
+  burst.setTrigger(true);
+  let shots = 0;
+  for (let i = 0; i < 20; i += 1) shots += burst.update(0.05);
+  assert.equal(shots, 3, 'a burst is three rounds however long the trigger is held');
+  burst.setTrigger(false);
+  burst.setTrigger(true);
+  for (let i = 0; i < 20; i += 1) shots += burst.update(0.05);
+  assert.equal(shots, 6);
+
+  const auto = new WeaponController({ roundsPerMinute: 750, fireMode: 'hosepipe' });
+  assert.equal(auto.fireMode, 'auto', 'an unknown mode is automatic');
+});

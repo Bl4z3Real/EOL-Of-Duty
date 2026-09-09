@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 /**
- * Bake the Hijacked collision mesh into a serialized Detour navmesh.
+ * Bake a map's collision mesh into a serialized Detour navmesh.
  *
  * The browser must never rebake this data. Run this script after the
- * collision exporter has produced export/web/hijacked_collision.gltf (or a
+ * collision exporter has produced export/web/<map>_collision.gltf (or a
  * JSON source containing positions/indices):
  *
  *   npm run bake:navmesh
+ *   npm run bake:navmesh -- --map mp_nuketown_2020
  *   npm run bake:navmesh -- --input export/web/hijacked_collision.gltf
  *
  * Input geometry is expected to be in Three.js coordinates (x, y-up, z).
@@ -22,22 +23,17 @@ import { fileURLToPath } from 'node:url';
 import { exportNavMesh, init, NavMeshQuery } from '@recast-navigation/core';
 import { generateSoloNavMesh } from '@recast-navigation/generators';
 
+import { DEFAULT_MAP, MAP_IDS, findMap, mapFiles } from '../export/web/maps.js';
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const DEFAULT_INPUTS = [
-  'export/web/hijacked_collision.gltf',
-  'export/web/hijacked_collision.glb',
-  'export/web/hijacked_nav_source.json',
-  'export/web/nav_source.json',
-];
-const DEFAULT_OFFMESH_INPUTS = [
-  'export/web/hijacked_navigation_hints.json',
-  'export/web/hijacked_nav_hints.json',
-  'export/web/hijacked_offmesh.json',
-  'export/web/hijacked_off_mesh.json',
-  'export/web/nav_links.json',
-];
-const DEFAULT_OUTPUT = 'export/web/hijacked.navmesh.bin';
 const PATHNODE_BOUNDS_PADDING = Object.freeze({ x: 384, y: 256, z: 384 });
+// A world whose collision includes distant vista terrain (Nuketown's desert
+// spans 75k units) would ask Recast for a heightfield of billions of cells and
+// fail to rasterize. Past this many cells on an axis the bake falls back to the
+// pathnode envelope, padded wider than usual so fenced yards past the last
+// node stay walkable.
+const MAX_HEIGHTFIELD_CELLS = 8192;
+const CLAMPED_BOUNDS_PADDING = Object.freeze({ x: 1024, y: 512, z: 1024 });
 
 // T6 world units. Recast's height/radius fields below are voxel counts.
 const NAV_CONFIG = Object.freeze({
@@ -72,9 +68,10 @@ function usage(message) {
   console.error(`usage: node .tools/bake_navmesh.mjs [options]
 
 options:
+  --map <id>           map to bake (default ${DEFAULT_MAP}; one of ${MAP_IDS.join(', ')})
   --input <file>       collision .gltf/.glb or JSON nav source
   --offmesh <file>     JSON off-mesh candidates/links
-  --output <file>      serialized output (default ${DEFAULT_OUTPUT})
+  --output <file>      serialized output (default export/web/<prefix>.navmesh.bin)
   --meta <file>        metadata output (default output with .json suffix)
   --coordinate-system <auto|three|t6>
                        override geometry coordinate system
@@ -83,14 +80,15 @@ options:
 }
 
 function parseArgs(argv) {
-  const args = { input: undefined, offmesh: undefined, output: DEFAULT_OUTPUT, meta: undefined, coordinateSystem: 'auto' };
+  const args = { map: DEFAULT_MAP, input: undefined, offmesh: undefined, output: undefined, meta: undefined, coordinateSystem: 'auto' };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--help' || arg === '-h') {
       usage();
       return null;
     }
-    if (arg === '--input' || arg === '-i') args.input = argv[++i];
+    if (arg === '--map' || arg === '-m') args.map = argv[++i];
+    else if (arg === '--input' || arg === '-i') args.input = argv[++i];
     else if (arg === '--offmesh' || arg === '--off-mesh') args.offmesh = argv[++i];
     else if (arg === '--output' || arg === '-o') args.output = argv[++i];
     else if (arg === '--meta') args.meta = argv[++i];
@@ -491,7 +489,7 @@ function computeBounds(positions, indices) {
   return { min, max };
 }
 
-function computePathnodeBounds(pathnodes) {
+function computePathnodeBounds(pathnodes, padding = PATHNODE_BOUNDS_PADDING) {
   if (!pathnodes.length) return undefined;
   const min = [Infinity, Infinity, Infinity];
   const max = [-Infinity, -Infinity, -Infinity];
@@ -504,9 +502,13 @@ function computePathnodeBounds(pathnodes) {
     max[2] = Math.max(max[2], point.z);
   }
   return [
-    min.map((value, axis) => value - PATHNODE_BOUNDS_PADDING[['x', 'y', 'z'][axis]]),
-    max.map((value, axis) => value + PATHNODE_BOUNDS_PADDING[['x', 'y', 'z'][axis]]),
+    min.map((value, axis) => value - padding[['x', 'y', 'z'][axis]]),
+    max.map((value, axis) => value + padding[['x', 'y', 'z'][axis]]),
   ];
+}
+
+function heightfieldCells(bounds, cellSize) {
+  return Math.max((bounds[1][0] - bounds[0][0]) / cellSize, (bounds[1][2] - bounds[0][2]) / cellSize);
 }
 
 function makeGeneratorConfig(source, offMeshConnections) {
@@ -522,16 +524,34 @@ function makeGeneratorConfig(source, offMeshConnections) {
     // keeping those isolated triangles out of the heightfield.
     config.bounds = computePathnodeBounds(source.pathnodes);
   }
+  if (config.bounds && source.pathnodes.length && heightfieldCells(config.bounds, config.cs) > MAX_HEIGHTFIELD_CELLS) {
+    const clamped = computePathnodeBounds(source.pathnodes, CLAMPED_BOUNDS_PADDING);
+    console.log(`bounds span ${Math.round(heightfieldCells(config.bounds, config.cs))} cells; clamping to the pathnode envelope ${clamped[0].map(Math.round)} .. ${clamped[1].map(Math.round)}`);
+    config.bounds = clamped;
+  }
   return config;
 }
 
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (!args) return;
+  const map = findMap(args.map);
+  if (!map) {
+    usage(`unknown map ${args.map}; expected one of ${MAP_IDS.join(', ')}`);
+    return;
+  }
+  const files = mapFiles(map);
+  const defaultInputs = [
+    `export/web/${files.collisionGltf}`,
+    `export/web/${files.collisionGltf.replace(/\.gltf$/, '.glb')}`,
+    `export/web/${map.prefix}_nav_source.json`,
+  ];
+  const defaultOffMeshInputs = [`export/web/${files.navHints}`];
+  args.output ??= `export/web/${files.navmesh}`;
   const inputWasExplicit = Boolean(args.input);
-  const input = inputWasExplicit ? absolute(args.input) : firstExisting(DEFAULT_INPUTS);
+  const input = inputWasExplicit ? absolute(args.input) : firstExisting(defaultInputs);
   if (!input) {
-    usage(`no collision input found. Expected one of: ${DEFAULT_INPUTS.join(', ')}. Pass --input explicitly.`);
+    usage(`no collision input found. Expected one of: ${defaultInputs.join(', ')}. Pass --input explicitly.`);
     return;
   }
   if (!fs.existsSync(input)) {
@@ -543,7 +563,7 @@ async function main() {
   // A map-wide sidecar is auto-discovered for the default collision input.
   // Explicit test/alternate sources should be self-contained unless the
   // caller opts in with --offmesh.
-  const offMeshFile = args.offmesh ? absolute(args.offmesh) : (inputWasExplicit ? undefined : firstExisting(DEFAULT_OFFMESH_INPUTS));
+  const offMeshFile = args.offmesh ? absolute(args.offmesh) : (inputWasExplicit ? undefined : firstExisting(defaultOffMeshInputs));
   if (offMeshFile && !fs.existsSync(offMeshFile)) throw new Error(`off-mesh file does not exist: ${offMeshFile}`);
 
   const source = loadInput(input, args.coordinateSystem);

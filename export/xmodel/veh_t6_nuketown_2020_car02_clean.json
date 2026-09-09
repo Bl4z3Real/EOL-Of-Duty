@@ -1,0 +1,33 @@
+{
+    "$schema": "http://openassettools.dev/schema/xmodel.v1.json",
+    "_game": "t6",
+    "_type": "xmodel",
+    "_version": 2,
+    "collLod": 3,
+    "flags": 6291456,
+    "lightingOriginOffset": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.5
+    },
+    "lightingOriginRange": 0.5,
+    "lods": [
+        {
+            "distance": 600.0,
+            "file": "model_export/veh_t6_nuketown_2020_car02_clean_lod0.obj"
+        },
+        {
+            "distance": 1400.0,
+            "file": "model_export/veh_t6_nuketown_2020_car02_clean_lod1.obj"
+        },
+        {
+            "distance": 2800.0,
+            "file": "model_export/veh_t6_nuketown_2020_car02_clean_lod2.obj"
+        },
+        {
+            "distance": 100000.0,
+            "file": "model_export/veh_t6_nuketown_2020_car02_clean_lod3.obj"
+        }
+    ],
+    "type": "rigid"
+}

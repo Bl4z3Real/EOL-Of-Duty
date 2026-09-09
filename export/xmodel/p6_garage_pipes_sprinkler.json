@@ -13,15 +13,15 @@
     "lods": [
         {
             "distance": 150.0,
-            "file": "model_export/p6_garage_pipes_sprinkler_lod0.glb"
+            "file": "model_export/p6_garage_pipes_sprinkler_lod0.obj"
         },
         {
             "distance": 450.0,
-            "file": "model_export/p6_garage_pipes_sprinkler_lod1.glb"
+            "file": "model_export/p6_garage_pipes_sprinkler_lod1.obj"
         },
         {
             "distance": 1000.0,
-            "file": "model_export/p6_garage_pipes_sprinkler_lod2.glb"
+            "file": "model_export/p6_garage_pipes_sprinkler_lod2.obj"
         }
     ],
     "rootBoneName": "p6_garage_pipes_sprinkler01_lod0",

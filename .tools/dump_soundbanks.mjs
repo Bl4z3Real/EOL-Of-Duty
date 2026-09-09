@@ -32,7 +32,14 @@ import { fileURLToPath } from 'node:url';
 
 const toolsDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(toolsDir, '..');
-const unlinker = path.join(toolsDir, 'Unlinker.exe');
+// The Windows build next to this script, or the local build from
+// .tools/oat (see README, "Dumping a map from the game").
+const unlinker = ['Unlinker', 'Unlinker.exe']
+  .map((name) => path.join(toolsDir, name))
+  .find((candidate) => fs.existsSync(candidate)) ?? path.join(toolsDir, 'Unlinker.exe');
+// Where the game's zone/all and sound folders live. Defaults to the repo
+// root, which is how the Windows setup mirrors them; BO2_ROOT points anywhere.
+const gameRoot = process.env.BO2_ROOT ? path.resolve(process.env.BO2_ROOT) : repoRoot;
 
 // Ordered so the broadest banks land first; later zones only add aliases.
 export const BANK_ZONES = [
@@ -41,10 +48,11 @@ export const BANK_ZONES = [
   'code_post_gfx_mp',
   'code_post_gfx',
   'mp_hijacked',
+  'mp_nuketown_2020',
 ];
 
-export function soundDataAvailable(root = repoRoot) {
-  const dir = path.join(root, 'sound');
+export function soundDataAvailable(root = gameRoot) {
+  const dir = fs.existsSync(path.join(root, 'sound')) ? path.join(root, 'sound') : root;
   if (!fs.existsSync(dir)) return false;
   return fs.readdirSync(dir).some((f) => f.endsWith('.sabl') || f.endsWith('.sabs'));
 }
@@ -53,12 +61,13 @@ export function soundDataAvailable(root = repoRoot) {
 const DATA_ZONE = 'code_post_gfx_mp';
 
 function dumpZone(zone, outDir) {
-  const zonePath = path.join(repoRoot, 'zone', 'all', `${zone}.ff`);
+  const zoneDir = fs.existsSync(path.join(gameRoot, 'zone', 'all')) ? path.join(gameRoot, 'zone', 'all') : gameRoot;
+  const zonePath = path.join(zoneDir, `${zone}.ff`);
   if (!fs.existsSync(zonePath)) return { zone, skipped: 'no such zone' };
 
-  const preload = zone === DATA_ZONE
+  const preload = zone === DATA_ZONE || !fs.existsSync(path.join(zoneDir, `${DATA_ZONE}.ff`))
     ? []
-    : ['--load', path.join(repoRoot, 'zone', 'all', `${DATA_ZONE}.ff`)];
+    : ['--load', path.join(zoneDir, `${DATA_ZONE}.ff`)];
 
   let output = '';
   try {

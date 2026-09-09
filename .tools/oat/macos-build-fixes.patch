@@ -1,0 +1,112 @@
+diff --git a/premake5.lua b/premake5.lua
+index 8513343..34ca934 100644
+--- a/premake5.lua
++++ b/premake5.lua
+@@ -16,6 +16,10 @@ workspace "OpenAssetTools"
+     objdir "%{wks.location}/obj"
+     symbols "On"
+     systemversion "latest"
++    filter "system:macosx"
++        systemversion "14.0"
++        buildoptions { "-Wno-nonportable-include-path" }
++    filter {}
+     cppdialect "C++23"
+     largeaddressaware "on"
+     multiprocessorcompile "on"
+diff --git a/src/ObjCommon/Csv/CsvHeaderRow.cpp b/src/ObjCommon/Csv/CsvHeaderRow.cpp
+index d1d9947..4cb68ae 100644
+--- a/src/ObjCommon/Csv/CsvHeaderRow.cpp
++++ b/src/ObjCommon/Csv/CsvHeaderRow.cpp
+@@ -1,5 +1,7 @@
+ #include "Csv/CsvHeaderRow.h"
+ 
++#include <algorithm>
++
+ CsvHeaderRow::CsvHeaderRow() = default;
+ 
+ bool CsvHeaderRow::Read(const CsvInputStream& inputStream)
+diff --git a/src/ObjCommon/InfoString/InfoString.cpp b/src/ObjCommon/InfoString/InfoString.cpp
+index 4165585..c9ed11c 100644
+--- a/src/ObjCommon/InfoString/InfoString.cpp
++++ b/src/ObjCommon/InfoString/InfoString.cpp
+@@ -1,5 +1,7 @@
+ #include "InfoString.h"
+ 
++#include <algorithm>
++
+ #include "Utils/Logging/Log.h"
+ #include "Utils/StringUtils.h"
+ 
+diff --git a/src/ObjLoading/ObjContainer/SoundBank/SoundBankWriter.cpp b/src/ObjLoading/ObjContainer/SoundBank/SoundBankWriter.cpp
+index 992ec66..5c65b99 100644
+--- a/src/ObjLoading/ObjContainer/SoundBank/SoundBankWriter.cpp
++++ b/src/ObjLoading/ObjContainer/SoundBank/SoundBankWriter.cpp
+@@ -1,5 +1,7 @@
+ #include "SoundBankWriter.h"
+ 
++#include <algorithm>
++
+ #include "Cryptography.h"
+ #include "ObjContainer/SoundBank/SoundBankTypes.h"
+ #include "Sound/FlacDecoder.h"
+diff --git a/src/ObjWriting/Material/AbstractMaterialConstantZoneState.cpp b/src/ObjWriting/Material/AbstractMaterialConstantZoneState.cpp
+index 57cae6f..bda47ea 100644
+--- a/src/ObjWriting/Material/AbstractMaterialConstantZoneState.cpp
++++ b/src/ObjWriting/Material/AbstractMaterialConstantZoneState.cpp
+@@ -1,5 +1,7 @@
+ #include "AbstractMaterialConstantZoneState.h"
+ 
++#include <algorithm>
++
+ #include "ObjWriting.h"
+ #include "Shader/D3D11ShaderAnalyser.h"
+ #include "Shader/D3D9ShaderAnalyser.h"
+diff --git a/src/ObjWriting/Techset/CommonTechniqueDumper.cpp b/src/ObjWriting/Techset/CommonTechniqueDumper.cpp
+index 2c6c9ff..229939b 100644
+--- a/src/ObjWriting/Techset/CommonTechniqueDumper.cpp
++++ b/src/ObjWriting/Techset/CommonTechniqueDumper.cpp
+@@ -1,5 +1,7 @@
+ #include "CommonTechniqueDumper.h"
+ 
++#include <algorithm>
++
+ #include "Dumping/AbstractTextDumper.h"
+ #include "Shader/D3D11ShaderAnalyser.h"
+ #include "Shader/D3D9ShaderAnalyser.h"
+diff --git a/src/Parser/Parsing/Impl/AbstractDirectiveStreamProxy.cpp b/src/Parser/Parsing/Impl/AbstractDirectiveStreamProxy.cpp
+index 24a9471..9f98d41 100644
+--- a/src/Parser/Parsing/Impl/AbstractDirectiveStreamProxy.cpp
++++ b/src/Parser/Parsing/Impl/AbstractDirectiveStreamProxy.cpp
+@@ -1,5 +1,7 @@
+ #include "AbstractDirectiveStreamProxy.h"
+ 
++#include <cstdlib>
++
+ TokenPos AbstractDirectiveStreamProxy::CreatePos(const ParserLine& line, const size_t position)
+ {
+     return TokenPos(*line.m_filename, line.m_line_number, static_cast<int>(position + 1));
+diff --git a/src/Unlinking/Unlinker.cpp b/src/Unlinking/Unlinker.cpp
+index a9e9896..e4bde74 100644
+--- a/src/Unlinking/Unlinker.cpp
++++ b/src/Unlinking/Unlinker.cpp
+@@ -1,5 +1,7 @@
+ #include "Unlinker.h"
+ 
++#include <sstream>
++
+ #include "ContentLister/ContentPrinter.h"
+ #include "Game/AutoSearchPaths.h"
+ #include "IObjLoader.h"
+diff --git a/thirdparty/zlib.lua b/thirdparty/zlib.lua
+index 742a1f0..6a6f2e7 100644
+--- a/thirdparty/zlib.lua
++++ b/thirdparty/zlib.lua
+@@ -44,7 +44,7 @@ function zlib:project()
+ 			"_CRT_NONSTDC_NO_DEPRECATE"
+ 		}
+ 
+-		filter "system:linux"
++		filter "system:linux or system:macosx"
+ 			defines {
+ 				"Z_HAVE_UNISTD_H"
+ 			}

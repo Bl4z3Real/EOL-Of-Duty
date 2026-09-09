@@ -31,7 +31,9 @@ function buildGun() {
 
 test('the catalog leads with the camo the gun already wore', () => {
   const viewmodel = new Viewmodel();
-  assert.deepEqual(viewmodel.availableCamos, ['openai', 'claude']);
+  // The two project camos first, then the game's own unlock camos.
+  assert.deepEqual(viewmodel.availableCamos.slice(0, 3), ['openai', 'claude', 'erdl']);
+  assert.ok(viewmodel.availableCamos.length >= 20, 'the Black Ops II camo set is in the catalog');
   assert.equal(viewmodel.camo, 'openai');
 });
 
@@ -61,11 +63,21 @@ test('camo textures tile across the gun instead of stretching once', () => {
   assert.equal(receiver.material.map.colorSpace, THREE.SRGBColorSpace);
 });
 
-test('cycling wraps back around to the first camo', () => {
+test('cycling walks the catalog and wraps at both ends', () => {
   const { viewmodel } = buildGun();
 
   assert.equal(viewmodel.cycleCamo(), 'claude');
+  assert.equal(viewmodel.cycleCamo(), 'erdl');
+  assert.equal(viewmodel.cycleCamo(-2), 'openai');
+  assert.equal(viewmodel.cycleCamo(-1), viewmodel.availableCamos.at(-1), 'stepping back from the first wraps to the last');
   assert.equal(viewmodel.cycleCamo(), 'openai');
+});
+
+test('a Black Ops II camo tiles at its own repeat and paints the gun', () => {
+  const { viewmodel, receiver } = buildGun();
+  assert.equal(viewmodel.setCamo('kryptek_typhon'), true);
+  assert.equal(viewmodel.camo, 'kryptek_typhon');
+  assert.equal(receiver.material.map.repeat.x, 2, 'the game camos are authored at a larger scale than the two project tiles');
 });
 
 test('cycling reports the camo on the gun when the next one never loaded', () => {

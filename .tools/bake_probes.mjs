@@ -16,13 +16,17 @@
 // needs no custom shader.
 //
 // Outputs (export/web):
-//   hijacked_probes.bin   f32, cells * 4 coefficients * 3 channels, x-major
-//   hijacked_probes.json  origin, spacing, dims
+//   <prefix>_probes.bin   f32, cells * 4 coefficients * 3 channels, x-major
+//   <prefix>_probes.json  origin, spacing, dims
+//
+//   npm run bake:probes -- --map mp_nuketown_2020
 
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
+
+import { DEFAULT_MAP, MAP_IDS, findMap, mapFiles } from '../export/web/maps.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WEB = path.join(ROOT, 'export', 'web');
@@ -201,6 +205,12 @@ export function rayTri(ox, oy, oz, dx, dy, dz, tris, t, maxDist, minDist = 1e-3)
 
 // ------------------------------ glTF reading ------------------------------
 
+// Pathnode positions the collision exporter stores in the glTF extras.
+export function parseGltfPathnodes(gltfPath) {
+  const gltf = JSON.parse(fs.readFileSync(gltfPath, 'utf8'));
+  return (gltf.extras?.pathnodes ?? []).map((p) => [Number(p[0]), Number(p[1]), Number(p[2])]);
+}
+
 export function parseGltfTriangles(gltfPath) {
   const gltf = JSON.parse(fs.readFileSync(gltfPath, 'utf8'));
   const bin = fs.readFileSync(path.join(path.dirname(gltfPath), gltf.buffers[0].uri));
@@ -313,17 +323,25 @@ export function probeAt(point, dirs, bvh, sky, options = {}) {
 // --------------------------------- main -----------------------------------
 
 function run() {
+  const argv = process.argv.slice(2);
+  const mapIndex = argv.findIndex((arg) => arg === '--map' || arg === '-m');
+  const map = findMap(mapIndex >= 0 ? argv[mapIndex + 1] : DEFAULT_MAP);
+  if (!map) {
+    console.error(`usage: node .tools/bake_probes.mjs [--map <${MAP_IDS.join('|')}>]`);
+    process.exit(2);
+  }
+  const files = mapFiles(map);
   const spacing = Number(process.env.PROBE_SPACING || 160);
   const rays = Number(process.env.PROBE_RAYS || 128);
 
-  console.log('loading occluders...');
-  const tris = parseGltfTriangles(path.join(WEB, 'hijacked_collision.gltf'));
+  console.log(`loading occluders for ${map.id}...`);
+  const tris = parseGltfTriangles(path.join(WEB, files.collisionGltf));
   console.log(`  ${tris.length / 9} triangles`);
   const bvh = new BVH(tris);
 
   console.log('loading sky...');
   const faces = FACE_ORDER.map((f) =>
-    decodeOwnPng(fs.readFileSync(path.join(WEB, 'textures', 'env', `${f}.png`))));
+    decodeOwnPng(fs.readFileSync(path.join(WEB, map.env, `${f}.png`))));
   const sky = makeSkySampler(faces);
 
   const min = [Infinity, Infinity, Infinity];
@@ -333,6 +351,21 @@ function run() {
       if (tris[i + c] < min[c]) min[c] = tris[i + c];
       if (tris[i + c] > max[c]) max[c] = tris[i + c];
     }
+  }
+  // Collision that carries distant vista terrain (Nuketown's desert spans
+  // 75k units) would put millions of cells in the lattice. Past the budget,
+  // the grid shrinks to the pathnode envelope, padded so the fenced edges of
+  // the playable area still get probes; the geometry outside still occludes.
+  const pathnodes = parseGltfPathnodes(path.join(WEB, files.collisionGltf));
+  const budget = Number(process.env.PROBE_MAX_CELLS_PER_AXIS || 160);
+  if (pathnodes.length && [0, 2].some((c) => (max[c] - min[c]) / spacing > budget)) {
+    const span = Math.round(Math.max(max[0] - min[0], max[2] - min[2]));
+    const pad = [1024, 512, 1024];
+    for (let c = 0; c < 3; c++) {
+      min[c] = Math.min(...pathnodes.map((p) => p[c])) - pad[c];
+      max[c] = Math.max(...pathnodes.map((p) => p[c])) + pad[c];
+    }
+    console.log(`collision spans ${span} units; grid clamped to the pathnode envelope ${min.map(Math.round)} .. ${max.map(Math.round)}`);
   }
   const margin = spacing;
   const origin = min.map((v) => v - margin);
@@ -359,8 +392,8 @@ function run() {
     }
   }
 
-  fs.writeFileSync(path.join(WEB, 'hijacked_probes.bin'), Buffer.from(data.buffer));
-  fs.writeFileSync(path.join(WEB, 'hijacked_probes.json'), JSON.stringify({
+  fs.writeFileSync(path.join(WEB, files.probes), Buffer.from(data.buffer));
+  fs.writeFileSync(path.join(WEB, files.probesMeta), JSON.stringify({
     origin, spacing, dims,
     coefficients: 4,
     layout: 'x-major, then y, then z; 4 SH coefficients of rgb float32',
