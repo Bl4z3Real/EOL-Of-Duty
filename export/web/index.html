@@ -1548,6 +1548,7 @@ function loadWeaponSlot(slot) {
         {
           magazineOffset: definition.magazineOffset,
           magazineRotation: definition.magazineRotation,
+          hiddenTags: definition.hiddenTags,
         },
       );
       // Rifles melee with the knife clips and every gun throws with the M67's.
@@ -2286,6 +2287,7 @@ function getDebugState() {
       meleeing: viewmodel.meleeing,
       throwing: viewmodel.throwing,
       scoped: viewmodel.scoped,
+      scopeMounted: Boolean(viewmodel.scopeRoot),
       rechambering: viewmodel.rechambering,
       pendingRechamber: viewmodel.pendingRechamber,
       fov: debugRound(camera.fov),

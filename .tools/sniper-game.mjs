@@ -42,7 +42,7 @@ export async function runSniperTest(page, artifactRoot) {
       debug.lookAt([feet[0] + 1000, feet[1] + 100, feet[2]]);
     }, id);
     if (mobile) await wait(() => globalThis.hijacked.debug.getState().input.touch.enabled);
-    await shot(`${id}-hip`);
+    check(`${id}PhysicalScope`, (await shot(`${id}-hip`)).weapon.scopeMounted);
     await aim(true);
     await wait(() => globalThis.hijacked.debug.getState().weapon.scoped);
     await page.waitForTimeout(400);

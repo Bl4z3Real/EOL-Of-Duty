@@ -761,6 +761,7 @@ npm run ai:enemy
 npm run ai:life
 npm run ai:mobile
 npm run ai:sniper
+npm run ai:rigs
 npm run ai:graphics
 npm run ai:graphics -- fallback
 npm run ai:record -- 10
@@ -777,6 +778,8 @@ Outputs are written to `artifacts/ai-game/`:
 - `report.json`: machine-readable checks and pass/fail status
 
 `debug.setEnemiesActive(false)` pauses bots and their navigation for input/animation probes while the player keeps running; restore it with `true`. `getState().enemiesActive` reports the setting. Combat remains covered by `ai:enemy`.
+
+`ai:rigs` renders all 17 weapon rigs at fixed hip, ADS, normal-reload and empty-reload poses. It checks sight projection, physical scopes and magazine seating, and saves screenshots and state to `artifacts/weapon-rigs`. Set `RIG_WEAPONS=m27,an94` to narrow the roster and `BROWSER_PATH` to choose Chrome or Edge.
 
 `ai:sniper` checks all four rifles with real aim, fire and hold-breath input, including scope/bolt transitions and pause/respawn recovery. Set `AI_GAME_MOBILE=1` to exercise touch input and the portrait scope masks.
 

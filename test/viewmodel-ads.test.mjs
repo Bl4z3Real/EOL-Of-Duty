@@ -356,3 +356,21 @@ test('interrupting scoped aim immediately restores the rig and resets the next r
   assert.equal(vm.adsTransition.value, 0);
   assert.deepEqual(changes, [false]);
 });
+
+test('pistol irons align without a sight marker in the model', () => {
+  const { viewmodel, jGun, tagSights } = buildRig();
+  tagSights.removeFromParent();
+  viewmodel.computeAdsAlignment();
+  const { front, rear } = aimedSights(viewmodel, jGun);
+  assert.ok(Math.hypot(front.x, front.y, rear.x, rear.y) < 1e-6);
+});
+
+test('rear night-sight dots sharing the front material do not move the front anchor', () => {
+  const { viewmodel, jGun } = buildRig();
+  jGun.add(new THREE.Mesh(quad([
+    0.4, -0.2, 5.0, 0.4, 0.2, 5.0, 0.4, 0.2, 5.15, 0.4, -0.2, 5.15,
+  ]), new THREE.MeshBasicMaterial({ name: 'mc/mtl_t6_attach_tritium_red' })));
+  viewmodel.root.updateMatrixWorld(true);
+  const actual = jGun.worldToLocal(viewmodel.findSightTip(jGun));
+  assert.ok(actual.distanceTo(new THREE.Vector3(...FRONT_TIP)) < 1e-5);
+});

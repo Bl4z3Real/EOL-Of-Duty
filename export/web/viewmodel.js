@@ -17,6 +17,46 @@ const VIEW_TO_CAMERA = new THREE.Matrix4().makeBasis(
   new THREE.Vector3(0, 1, 0),
 );
 
+// GLB meshes are Y-up; animation joints below the exported root retain T6 axes.
+const GLTF_TO_ENGINE = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), Math.PI / 2);
+const ENGINE_TO_GLTF = GLTF_TO_ENGINE.clone().invert();
+
+export function mountWeaponAttachment(model, joint, offset = [0, 0, 0], rotation = [0, 0, 0]) {
+  model.matrixAutoUpdate = true;
+  model.position.fromArray(offset);
+  model.quaternion.setFromEuler(new THREE.Euler(...rotation)).multiply(GLTF_TO_ENGINE);
+  joint.add(model);
+  return model;
+}
+
+// hideTags names skin influences, not separate render objects. Hiding a Bone
+// itself leaves its weighted triangles visible, so remove those triangles.
+export function hideModelTags(root, names = []) {
+  const hidden = new Set(names);
+  root.traverse(mesh => {
+    if (!mesh.isSkinnedMesh || !hidden.size) return;
+    const indices = mesh.geometry.getIndex();
+    const joints = mesh.geometry.getAttribute('skinIndex');
+    const weights = mesh.geometry.getAttribute('skinWeight');
+    const hiddenBones = new Set(mesh.skeleton.bones.flatMap((bone, i) => {
+      for (let node = bone; node; node = node.parent) if (hidden.has(node.name)) return [i];
+      return [];
+    }));
+    const hiddenVertex = i => {
+      let weight = 0;
+      for (let c = 0; c < 4; c++) if (hiddenBones.has(joints.getComponent(i, c))) weight += weights.getComponent(i, c);
+      return weight > 0.5;
+    };
+    const kept = [];
+    const count = indices?.count ?? joints.count;
+    for (let i = 0; i < count; i += 3) {
+      const tri = [0, 1, 2].map(c => indices ? indices.getX(i + c) : i + c);
+      if (!tri.some(hiddenVertex)) kept.push(...tri);
+    }
+    if (kept.length !== count) { mesh.geometry = mesh.geometry.clone(); mesh.geometry.setIndex(kept); }
+  });
+}
+
 const { clamp, damp } = THREE.MathUtils;
 
 // The camo catalog lives in skins.js; T6 paints a camo onto every `_camoN`
@@ -26,8 +66,7 @@ export const CAMO_MATERIAL_PATTERN = /_camo\d*$/i;
 // the rigs that animate two magazines carry one; see mountSpareMagazine().
 const SPARE_MAGAZINE_TAGS = Object.freeze(['tag_clip_full', 'tag_clip1']);
 // Every magazine channel is authored as a displacement and has to be anchored
-// before it can be played; the two halves of a mag change anchor on opposite
-// ends of the track. See the rebase in loadClips().
+// to its own bind position before it can be played. See loadClips().
 const MAGAZINE_TAGS = Object.freeze(new Set(['tag_clip', ...SPARE_MAGAZINE_TAGS]));
 // Sprint carry pose, blended in by sprintBlend. Rotations are radians, offsets
 // are rig units (inches), both in camera space (X right, Y up, -Z forward).
@@ -239,6 +278,8 @@ export class Viewmodel {
     this.reloading = false;
     this.weaponRoot = null;
     this.magazineRoot = null;
+    this.scopeRoot = null;
+    this.attachmentAnimationBases = new Map();
     this.spareMagazine = null;
     this.camo = findCamo(camo) ? camo : DEFAULT_WEAPON_CAMO;
     this.camoTextures = new Map();
@@ -316,10 +357,8 @@ export class Viewmodel {
     });
     // The spare tag is posed by the clip in the weapon's space, so the mount
     // must not re-apply the magwell offset the seated magazine needs.
-    spare.position.set(0, 0, 0);
-    spare.quaternion.identity();
+    mountWeaponAttachment(spare, tag);
     spare.visible = false;
-    tag.add(spare);
     this.camoRoots.push(spare);
     return spare;
   }
@@ -327,6 +366,7 @@ export class Viewmodel {
   async load(handsUrl, weaponUrl, magazineUrl, onProgress, {
     magazineOffset = null,
     magazineRotation = null,
+    hiddenTags = [],
   } = {}) {
     // The exported GLBs reference sibling textures as .dds; the web export ships
     // WebP copies instead, so remap the suffix at load time. They were PNG until
@@ -338,7 +378,7 @@ export class Viewmodel {
     const loader = new GLTFLoader(manager);
     const textureLoader = new THREE.TextureLoader(manager);
     const load = (url, label) => loadGltf(loader, url, (event) => onProgress?.(label, event));
-    const [hands, weapon, magazine, camoTextures] = await Promise.all([
+    const [hands, weapon, magazine, camoTextures, optic] = await Promise.all([
       load(handsUrl, 'hands'),
       load(weaponUrl, 'weapon'),
       magazineUrl
@@ -358,23 +398,30 @@ export class Viewmodel {
           return null;
         }
       })),
+      this.scope?.modelUrl ? load(this.scope.modelUrl, 'scope') : Promise.resolve(null),
     ]);
 
     this.camoTextures = new Map(camoTextures.filter(Boolean));
-    this.camoRoots = [weapon.scene, ...(magazine ? [magazine.scene] : [])];
+    this.camoRoots = [weapon.scene, ...(magazine ? [magazine.scene] : []), ...(optic ? [optic.scene] : [])];
     this.setCamo(this.camo);
 
     this.root.add(hands.scene, weapon.scene);
-    // T6 ships the magazine as its own attachment xmodel rather than welding it
-    // into the receiver, because the reload xanim animates it out of the well
-    // and back in on a `tag_clip` track. Attachment offsets are authored in the
-    // weapon model's root space, before its j_gun-to-tag_weapon weld.
+    const attachmentJoint = findNode(weapon.scene, 'j_gun');
+    hideModelTags(weapon.scene, hiddenTags);
+    const registerAttachment = (model, tagName, rotation = [0, 0, 0]) => {
+      const node = findNode(model, tagName);
+      if (node) this.attachmentAnimationBases.set(tagName,
+        ENGINE_TO_GLTF.clone().multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(...rotation)).invert()));
+    };
     if (magazine) {
-      if (Array.isArray(magazineOffset)) magazine.scene.position.fromArray(magazineOffset);
-      if (Array.isArray(magazineRotation)) magazine.scene.rotation.set(...magazineRotation);
-      weapon.scene.add(magazine.scene);
+      mountWeaponAttachment(magazine.scene, attachmentJoint, magazineOffset ?? [0, 0, 0], magazineRotation ?? [0, 0, 0]);
+      registerAttachment(magazine.scene, 'tag_clip', magazineRotation ?? [0, 0, 0]);
       this.magazineRoot = magazine.scene;
       this.spareMagazine = this.mountSpareMagazine(weapon.scene, magazine.scene);
+    }
+    if (optic) {
+      this.scopeRoot = mountWeaponAttachment(optic.scene, attachmentJoint, this.scope.offset);
+      registerAttachment(optic.scene, 'tag_scope');
     }
     this.root.updateMatrixWorld(true);
 
@@ -458,7 +505,7 @@ export class Viewmodel {
     const jGun = findNode(this.root, 'j_gun');
     const tagSights = findNode(this.root, 'tag_sights')
       ?? findNode(this.root, 'tag_sights_on');
-    if (!tagSights || !jGun) return;
+    if (!jGun) return;
     const gunQuat = jGun.getWorldQuaternion(new THREE.Quaternion());
     const gunUp = new THREE.Vector3(0, 0, 1).applyQuaternion(gunQuat).normalize();
 
@@ -468,8 +515,9 @@ export class Viewmodel {
     // — which is every rig the override exists for, since those are the ones
     // with no insert material to key on. The pair then fell through to the
     // single-point fallback, putting the rear sight back behind the camera.
-    const front = this.getSightAnchor(jGun, 'front') ?? this.findSightTip(jGun);
-    const rear = this.getSightAnchor(jGun, 'rear')
+    const optic = this.findScopeSights(jGun);
+    const front = optic?.front ?? this.getSightAnchor(jGun, 'front') ?? this.findSightTip(jGun);
+    const rear = optic?.rear ?? this.getSightAnchor(jGun, 'rear')
       ?? (front ? this.findRearSight(jGun, front) : null);
     // A rear anchor alone cannot be solved: without a front point there is no
     // line, and on these rigs the geometry cannot supply one either. That is a
@@ -484,7 +532,8 @@ export class Viewmodel {
     // barrel stands in for it and tag_sights/tag_sights_on anchors the eye, as
     // before.
     const sightLine = Boolean(front && rear);
-    const anchor = sightLine ? rear : tagSights.getWorldPosition(new THREE.Vector3());
+    const anchor = sightLine ? rear : tagSights?.getWorldPosition(new THREE.Vector3()) ?? front;
+    if (!anchor) return;
     const relief = sightLine ? this.adsEyeRelief : this.adsDistance;
     const back = sightLine
       ? rear.clone().sub(front).normalize()
@@ -556,38 +605,47 @@ export class Viewmodel {
     return jGun.localToWorld(best);
   }
 
-  // Top-centre of the front post's tritium insert in world space, read off the
-  // posed geometry — the far half of the sight picture, and the point the shot
-  // ray is made to pass through. It is authored level with the floor of the rear
-  // notch, which is why the notch floor is the one point that must *not* be used
-  // to aim: see findRearSight. Rigs that ship no such element fall back to
-  // tag_sights/tag_sights_on alone.
-  findSightTip(jGun) {
-    const box = new THREE.Box3();
-    const vertex = new THREE.Vector3();
-    this.root.traverse((object) => {
+  // Read only referenced vertices: each exported surface shares a larger
+  // position buffer with the rest of the weapon.
+  sightVertices(root, jGun, pattern) {
+    const points = [];
+    root?.traverse(object => {
       if (!object.isMesh) return;
       const materials = Array.isArray(object.material) ? object.material : [object.material];
-      if (!materials.some((material) => SIGHT_INSERT_PATTERN.test(material?.name ?? ''))) return;
-      // Every surface of the exported weapon shares one position buffer and is
-      // cut out of it by index, so walk the indices, not the whole attribute.
+      if (!materials.some(material => pattern.test(material?.name ?? ''))) return;
       const position = object.geometry.getAttribute('position');
       const index = object.geometry.getIndex();
-      const count = index ? index.count : position.count;
-      for (let i = 0; i < count; i += 1) {
-        const vertexIndex = index ? index.getX(i) : i;
-        vertex.fromBufferAttribute(position, vertexIndex);
-        if (object.isSkinnedMesh) object.applyBoneTransform(vertexIndex, vertex);
-        object.localToWorld(vertex);
-        box.expandByPoint(jGun.worldToLocal(vertex));
+      for (let i = 0; i < (index?.count ?? position.count); i++) {
+        const k = index ? index.getX(i) : i;
+        const vertex = new THREE.Vector3().fromBufferAttribute(position, k);
+        if (object.isSkinnedMesh) object.applyBoneTransform(k, vertex);
+        points.push(jGun.worldToLocal(object.localToWorld(vertex)));
       }
     });
-    if (box.isEmpty()) return null;
+    return points;
+  }
 
-    // j_gun holds the engine's joint axes: X down the barrel, Y left, Z up.
+  findSightTip(jGun) {
+    const points = this.sightVertices(this.weaponRoot ?? this.root, jGun, SIGHT_INSERT_PATTERN);
+    if (!points.length) return null;
+    // Front and rear dots often share one material. Only the forward cluster
+    // belongs to the post; combining both measures a point above the receiver.
+    const forward = Math.max(...points.map(p => p.x));
+    const box = new THREE.Box3().setFromPoints(points.filter(p => p.x > forward - 0.4));
     const tip = box.getCenter(new THREE.Vector3());
     tip.z = box.max.z;
     return jGun.localToWorld(tip);
+  }
+
+  findScopeSights(jGun) {
+    const points = this.sightVertices(this.scopeRoot, jGun, /lens/i);
+    if (!points.length) return null;
+    const box = new THREE.Box3().setFromPoints(points);
+    const rear = box.getCenter(new THREE.Vector3());
+    rear.x = box.min.x;
+    const front = rear.clone();
+    front.x = Math.max(box.max.x, rear.x + 1);
+    return { front: jGun.localToWorld(front), rear: jGun.localToWorld(rear) };
   }
 
   getSightAnchor(jGun, key) {
@@ -621,25 +679,11 @@ export class Viewmodel {
         if (bone.rot?.values?.length) {
           const times = bone.rot.frames.map((frame) => frame / data.fps);
           const values = bone.rot.values.slice();
-          // tag_clip's rotation is authored relative to the animation's first
-          // pose, while the converted attachment binds at -90 degrees about X.
-          // Apply the authored delta before that bind transform. Multiplying it
-          // after the bind rotates around the converted axes and turns the
-          // magazine upside-down as it leaves the well.
-          if (bone.name === 'tag_clip') {
-            const sourceBindInverse = new THREE.Quaternion(
-              values[0], values[1], values[2], values[3],
-            ).invert();
-            const targetBind = node.quaternion.clone();
-            const key = new THREE.Quaternion();
+          const basis = this.attachmentAnimationBases.get(bone.name);
+          if (basis) {
+            const q = new THREE.Quaternion();
             for (let i = 0; i < values.length; i += 4) {
-              key.set(values[i], values[i + 1], values[i + 2], values[i + 3])
-                .multiply(sourceBindInverse)
-                .multiply(targetBind);
-              values[i] = key.x;
-              values[i + 1] = key.y;
-              values[i + 2] = key.z;
-              values[i + 3] = key.w;
+              q.fromArray(values, i).premultiply(basis).normalize().toArray(values, i);
             }
           }
           tracks.push(new THREE.QuaternionKeyframeTrack(`${bone.name}.quaternion`, times, values));
@@ -647,43 +691,16 @@ export class Viewmodel {
         if (bone.pos?.values?.length) {
           const times = bone.pos.frames.map((frame) => frame / data.fps);
           const values = bone.pos.values.slice();
-          // Magazine displacements are authored in the engine's frame, X down
-          // the barrel, Y left, Z up, but the attachment root they move under
-          // was converted to Y up. Without this swap the drop out of the well
-          // plays sideways and the hand's offset plays as height, so the fresh
-          // magazine arrives from beside the gun instead of from underneath.
-          if (MAGAZINE_TAGS.has(bone.name)) {
+          // Magazine tracks are displacements from each joint's own bind.
+          // Embedded/spare joints are already in engine axes; only attachment
+          // root tracks cross the GLB conversion and authored mount rotation.
+          const basis = this.attachmentAnimationBases.get(bone.name);
+          if (MAGAZINE_TAGS.has(bone.name) || basis) {
+            const delta = new THREE.Vector3();
             for (let i = 0; i < values.length; i += 3) {
-              const left = values[i + 1];
-              values[i + 1] = values[i + 2];
-              values[i + 2] = -left;
-            }
-          }
-          // Magazine channels are authored as displacements, so each one has to
-          // be anchored on the pose it is a displacement *from*. The two halves
-          // of a mag change anchor on opposite ends. The magazine in the weapon
-          // starts seated, so tag_clip anchors its first key on the attachment's
-          // bind in the magwell. The fresh magazine instead *finishes* seated,
-          // arriving from wherever the hand carried it, so a spare tag anchors
-          // its last key on the seated magazine. Anchoring a spare on its first
-          // key assumes it starts in the well, which is only ever true when its
-          // track happens to open on the origin — it does on the sa58 and not on
-          // the an94 or sig556, so that rule fixed one rig and displaced two.
-          if (MAGAZINE_TAGS.has(bone.name)) {
-            const seats = SPARE_MAGAZINE_TAGS.includes(bone.name);
-            const target = seats
-              ? this.seatedMagazineIn(node.parent)
-              : node.position;
-            const from = seats ? values.length - 3 : 0;
-            const offset = [
-              target.x - values[from],
-              target.y - values[from + 1],
-              target.z - values[from + 2],
-            ];
-            for (let i = 0; i < values.length; i += 3) {
-              values[i] += offset[0];
-              values[i + 1] += offset[1];
-              values[i + 2] += offset[2];
+              delta.fromArray(values, i);
+              if (basis) delta.applyQuaternion(basis);
+              delta.add(node.position).toArray(values, i);
             }
           }
           tracks.push(new THREE.VectorKeyframeTrack(`${bone.name}.position`, times, values));
@@ -947,18 +964,6 @@ export class Viewmodel {
     this.showSpareMagazine(false);
     this.startNotetracks(empty && this.reloadEmptyAction ? 'reloadEmpty' : 'reload', action);
     return true;
-  }
-
-  // Where the seated magazine rests, expressed in `space`'s local frame. This is
-  // the pose the fresh magazine has to arrive at, and the two live under
-  // different parents, so it goes through world space rather than assuming any
-  // particular hierarchy.
-  seatedMagazineIn(space) {
-    const seated = new THREE.Vector3();
-    if (!this.magazineRoot || !space) return seated;
-    this.root.updateMatrixWorld(true);
-    this.magazineRoot.getWorldPosition(seated);
-    return space.worldToLocal(seated);
   }
 
   // Exactly one magazine is ever on the gun. The empty one holds the well until

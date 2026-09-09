@@ -125,6 +125,18 @@ def clip_entries(weapon: dict[str, str]) -> list[tuple[str, str]]:
     return entries
 
 
+SIGHT_ANCHORS = {'beretta93r': {'rear': [-2.204, 0, 2.377]},
+ 'sa58': {'rear': [-3.62, 0, 4.465]},
+ 'saritch': {'front': [12.672, 0, 3.924], 'rear': [-2.547, 0, 3.958]},
+ 'scar': {'front': [13.515, 0, 4.846], 'rear': [-2.237, 0, 4.894]},
+ 'sig556': {'front': [19.739, 0, 5.155], 'rear': [1.044, 0, 5.177]},
+ 'tar21': {'rear': [-4.6, 0, 3.89]},
+ 'type95': {'rear': [-5.6, 0, 4.46]},
+ 'xm8': {'rear': [-1.6, 0, 3.789]},
+ 'fnp45': {'front': [4.85, 0, 2.221], 'rear': [-2.5, 0, 2.221]},
+ 'kard': {'front': [7.5, 0, 2.999], 'rear': [-1.5, 0, 2.999]}}
+
+
 def emit_definition(source_id: str, slot: int) -> str:
     path = WEAPON_DIR / f"{source_id}_mp"
     weapon = parse_weapon_file(path)
@@ -159,6 +171,8 @@ def emit_definition(source_id: str, slot: int) -> str:
         f"    viewmodelUrl: 'viewmodel/{gun_model}_lod0.glb',",
         f"    worldModelUrl: 'enemies/{weapon['worldModel']}_lod1.glb',",
     ]
+    if weapon.get("hideTags"):
+        lines.append(f"    hiddenTags: Object.freeze({json.dumps(weapon['hideTags'].split())}),")
     if fire_mode == "burst":
         lines.append(f"    burstCount: {number(weapon.get('burstCount', '3'), integer=True)},")
     if sniper:
@@ -168,6 +182,8 @@ def emit_definition(source_id: str, slot: int) -> str:
         overlay = weapon.get("adsOverlayShader", "")
         lines.extend([
             "    scope: Object.freeze({",
+            f"      modelUrl: 'viewmodel/{weapon['attachViewModel1']}_lod0.glb',",
+            "      offset: Object.freeze([" + ", ".join(number(weapon.get(f'attachViewModelOffset{axis}1', '0')) for axis in ('X', 'Y', 'Z')) + "]),",
             f"      zoomFov: {number(weapon.get('adsZoomFov1', '15'))},",
             "      zoomLevels: Object.freeze([" + ", ".join(number(weapon.get(f'adsZoomFov{i}', '15')) for i in (1, 2, 3)) + "]),",
             f"      overlay: {js_string(f'ui/scope/{overlay}.png') if overlay else 'null'},",
@@ -206,7 +222,12 @@ def emit_definition(source_id: str, slot: int) -> str:
     # the value is the first tag_torso key of its ads_up clip.
     if source_id in TORSO_BINDS:
         lines.append(f"    torsoBind: Object.freeze([{', '.join(number(str(v)) for v in TORSO_BINDS[source_id])}]),")
-    lines.append("    // Agent A ADS sight-anchor override can be added here when a rig needs one.")
+    # Sight openings measured from the posed GLBs; material detection handles the front post.
+    if runtime_id in SIGHT_ANCHORS:
+        lines.append("    adsSightAnchors: Object.freeze({")
+        for key, point in SIGHT_ANCHORS[runtime_id].items():
+            lines.append(f"      {key}: Object.freeze({json.dumps(point)}),")
+        lines.append("    }),")
     lines.append("    clips: Object.freeze({")
     for key, name in clip_values:
         lines.append(f"      {key}: 'viewmodel/anims/{name}.json',")

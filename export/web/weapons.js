@@ -105,6 +105,10 @@ export const WEAPONS = Object.freeze({
     // Authored attachment offset from the shipped sa58_mp weapon file.
     magazineOffset: Object.freeze([4.006, 0.015, 1.821]),
     magazineRotation: Object.freeze([0, 0, 0]),
+    // Measured sight opening/post in j_gun coordinates (inches).
+    adsSightAnchors: Object.freeze({
+      rear: Object.freeze([-3.62, 0, 4.465]),
+    }),
     clips: Object.freeze({
       idle: 'viewmodel/anims/viewmodel_sa58_idle.json',
       fire: 'viewmodel/anims/viewmodel_sa58_fire.json',
@@ -127,22 +131,16 @@ export const WEAPONS = Object.freeze({
     damage: 50,
     fireTypeIcon: 'hud_mp_firerate_single',
     cardArt: 'ui/menu_mp_weapons_saritch_big.png',
+    hiddenTags: Object.freeze(["tag_sights_off"]),
     viewmodelUrl: 'viewmodel/t6_wpn_ar_saritch_view_lod0.glb',
     worldModelUrl: 'enemies/t6_wpn_ar_saritch_world_lod1.glb',
     magazineUrl: 'viewmodel/t6_attach_mag_saritch_view_lod0.glb',
     // Authored attachment offset from the shipped saritch_mp weapon file.
     magazineOffset: Object.freeze([-8.907, 0, -2.646]),
     magazineRotation: Object.freeze([0, 0, 0]),
-    // This rig ships no tritium insert, so findSightTip has nothing to measure
-    // and the sight line has to be given to it. Measured off the shipped model
-    // with `node .tools/measure_sights.mjs saritch`; points are in j_gun space.
-    // The tool reads the top of each sight, which is right for the post-and-notch
-    // irons it was calibrated on but sits above the aperture on this gun's ring
-    // sights, so the picture rendered 60px low. Both points are dropped by the
-    // same 0.281 to recentre it: an equal shift translates the sight picture
-    // without turning the sight line, so the slope the tool checks is unchanged.
+    // Actual front post tip and centre of the rear aperture, in j_gun space.
     adsSightAnchors: Object.freeze({
-      front: Object.freeze([12.672, 0, 3.643]),
+      front: Object.freeze([12.672, 0, 3.924]),
       rear: Object.freeze([-2.547, 0, 3.958]),
     }),
     clips: Object.freeze({
@@ -167,6 +165,7 @@ export const WEAPONS = Object.freeze({
     damage: 40,
     fireTypeIcon: 'hud_mp_firerate_auto',
     cardArt: 'ui/menu_mp_weapons_scar_big.png',
+    hiddenTags: Object.freeze(["tag_sights_off"]),
     viewmodelUrl: 'viewmodel/t6_wpn_ar_scarh_view_lod0.glb',
     worldModelUrl: 'enemies/t6_wpn_ar_scarh_world_lod1.glb',
     magazineUrl: 'viewmodel/t6_attach_mag_scar_view_lod0.glb',
@@ -204,18 +203,17 @@ export const WEAPONS = Object.freeze({
     damage: 40,
     fireTypeIcon: 'hud_mp_firerate_burst',
     cardArt: 'ui/menu_mp_weapons_sig556_big.png',
+    hiddenTags: Object.freeze(["tag_sights_off"]),
     viewmodelUrl: 'viewmodel/t6_wpn_ar_sig556_view_lod0.glb',
     worldModelUrl: 'enemies/t6_wpn_ar_sig556_world_lod1.glb',
     magazineUrl: 'viewmodel/t6_attach_mag_sig556_view_lod0.glb',
     // Authored attachment offset from the shipped sig556_mp weapon file.
     magazineOffset: Object.freeze([5.663, -0.008, -0.815]),
     magazineRotation: Object.freeze([0, 0, 0]),
-    // No tritium insert on this rig either, and ring sights again, so the same
-    // 50px recentring applies: both points dropped by 0.234 off what
-    // `node .tools/measure_sights.mjs sig556` reads. See the SMR above.
+    // Actual front post tip and centre of the rear aperture, in j_gun space.
     adsSightAnchors: Object.freeze({
-      front: Object.freeze([19.739, 0, 4.921]),
-      rear: Object.freeze([1.044, 0, 5.239]),
+      front: Object.freeze([19.739, 0, 5.155]),
+      rear: Object.freeze([1.044, 0, 5.177]),
     }),
     clips: Object.freeze({
       idle: 'viewmodel/anims/viewmodel_sig556_idle.json',
@@ -240,12 +238,17 @@ export const WEAPONS = Object.freeze({
     damage: 40,
     fireTypeIcon: 'hud_mp_firerate_auto',
     cardArt: 'ui/menu_mp_weapons_tar21_big.png',
+    hiddenTags: Object.freeze(["tag_sights_off", "tag_gl_on"]),
     viewmodelUrl: 'viewmodel/t6_wpn_ar_x95l_view_lod0.glb',
     worldModelUrl: 'enemies/t6_wpn_ar_x95l_world_lod1.glb',
     magazineUrl: 'viewmodel/t6_attach_mag_x95l_view_lod0.glb',
     // Authored attachment offset from the shipped tar21_mp weapon file.
     magazineOffset: Object.freeze([-9.754, 0, -0.04]),
     magazineRotation: Object.freeze([0, 0, 0]),
+    // Measured sight opening/post in j_gun coordinates (inches).
+    adsSightAnchors: Object.freeze({
+      rear: Object.freeze([-4.6, 0, 3.89]),
+    }),
     clips: Object.freeze({
       idle: 'viewmodel/anims/viewmodel_tavor_idle.json',
       fire: 'viewmodel/anims/viewmodel_tavor_fire.json',
@@ -268,12 +271,17 @@ export const WEAPONS = Object.freeze({
     damage: 33,
     fireTypeIcon: 'hud_mp_firerate_auto',
     cardArt: 'ui/menu_mp_weapons_type95_big.png',
+    hiddenTags: Object.freeze(["tag_sights_off", "tag_rails"]),
     viewmodelUrl: 'viewmodel/t6_wpn_ar_type95_view_lod0.glb',
     worldModelUrl: 'enemies/t6_wpn_ar_type95_world_lod1.glb',
     magazineUrl: 'viewmodel/t6_attach_mag_type95_view_lod0.glb',
     // Authored attachment offset from the shipped type95_mp weapon file.
     magazineOffset: Object.freeze([-8.38, 0, -0.678]),
     magazineRotation: Object.freeze([0, 0, 0]),
+    // Measured sight opening/post in j_gun coordinates (inches).
+    adsSightAnchors: Object.freeze({
+      rear: Object.freeze([-5.6, 0, 4.46]),
+    }),
     clips: Object.freeze({
       idle: 'viewmodel/anims/viewmodel_type95_ar_idle.json',
       fire: 'viewmodel/anims/viewmodel_type95_ar_fire.json',
@@ -298,12 +306,17 @@ export const WEAPONS = Object.freeze({
     damage: 35,
     fireTypeIcon: 'hud_mp_firerate_burst',
     cardArt: 'ui/menu_mp_weapons_xm8_big.png',
+    hiddenTags: Object.freeze(["tag_sights_off"]),
     viewmodelUrl: 'viewmodel/t6_wpn_ar_xm8_view_lod0.glb',
     worldModelUrl: 'enemies/t6_wpn_ar_xm8_world_lod1.glb',
     magazineUrl: 'viewmodel/t6_attach_mag_xm8_view_lod0.glb',
     // Authored attachment offset from the shipped xm8_mp weapon file.
     magazineOffset: Object.freeze([4.212, 0, 0.279]),
     magazineRotation: Object.freeze([0, 0, 0]),
+    // Measured sight opening/post in j_gun coordinates (inches).
+    adsSightAnchors: Object.freeze({
+      rear: Object.freeze([-1.6, 0, 3.789]),
+    }),
     clips: Object.freeze({
       idle: 'viewmodel/anims/viewmodel_xm8_idle.json',
       fire: 'viewmodel/anims/viewmodel_xm8_fire.json',
@@ -334,9 +347,12 @@ export const WEAPONS = Object.freeze({
     damage: 98,
     fireTypeIcon: 'hud_mp_firerate_bolt',
     cardArt: 'ui/menu_mp_weapons_dsr50_big.png',
+    hiddenTags: Object.freeze(["tag_sights"]),
     viewmodelUrl: 'viewmodel/t6_wpn_sniper_dsr50_view_lod0.glb',
     worldModelUrl: 'enemies/t6_wpn_sniper_dsr50_world_lod1.glb',
     scope: Object.freeze({
+      modelUrl: 'viewmodel/t6_wpn_sniper_dsr50_scope_view_lod0.glb',
+      offset: Object.freeze([-5.701, 0.0, 4.843]),
       zoomFov: 15,
       zoomLevels: Object.freeze([15, 15, 15]),
       overlay: 'ui/scope/scope_overlay_dsr50.png',
@@ -372,9 +388,12 @@ export const WEAPONS = Object.freeze({
     damage: 95,
     fireTypeIcon: 'hud_mp_firerate_bolt',
     cardArt: 'ui/menu_mp_weapons_ballista_big.png',
+    hiddenTags: Object.freeze(["tag_sights"]),
     viewmodelUrl: 'viewmodel/t6_wpn_sniper_ballista_view_lod0.glb',
     worldModelUrl: 'enemies/t6_wpn_sniper_ballista_world_lod1.glb',
     scope: Object.freeze({
+      modelUrl: 'viewmodel/t6_wpn_sniper_ballista_scope_view_lod0.glb',
+      offset: Object.freeze([5.312, 0.0, 4.737]),
       zoomFov: 15,
       zoomLevels: Object.freeze([15, 15, 15]),
       overlay: 'ui/scope/scope_overlay_ballista.png',
@@ -413,6 +432,8 @@ export const WEAPONS = Object.freeze({
     viewmodelUrl: 'viewmodel/t6_wpn_sniper_svu_view_lod0.glb',
     worldModelUrl: 'enemies/t6_wpn_sniper_svu_world_lod1.glb',
     scope: Object.freeze({
+      modelUrl: 'viewmodel/t6_wpn_sniper_svu_scope_view_lod0.glb',
+      offset: Object.freeze([4.253, -0.033, 6.839]),
       zoomFov: 20,
       zoomLevels: Object.freeze([20, 20, 20]),
       overlay: 'ui/scope/scope_overlay_svu.png',
@@ -446,9 +467,12 @@ export const WEAPONS = Object.freeze({
     damage: 95,
     fireTypeIcon: 'hud_mp_firerate_single',
     cardArt: 'ui/menu_mp_weapons_as50_big.png',
+    hiddenTags: Object.freeze(["tag_rail"]),
     viewmodelUrl: 'viewmodel/t6_wpn_sniper_xpr50_view_lod0.glb',
     worldModelUrl: 'enemies/t6_wpn_sniper_xpr50_world_lod1.glb',
     scope: Object.freeze({
+      modelUrl: 'viewmodel/t6_wpn_sniper_xpr50_scope_view_lod0.glb',
+      offset: Object.freeze([4.456, 0.0, 4.253]),
       zoomFov: 15,
       zoomLevels: Object.freeze([15, 15, 15]),
       overlay: 'ui/scope/scope_overlay_xpr50.png',
@@ -521,6 +545,11 @@ export const WEAPONS = Object.freeze({
     viewmodelUrl: 'viewmodel/t6_wpn_pistol_fnp45_view_lod0.glb',
     worldModelUrl: 'enemies/t6_wpn_pistol_fnp45_world_lod1.glb',
     magazineUrl: null,
+    // Measured sight opening/post in j_gun coordinates (inches).
+    adsSightAnchors: Object.freeze({
+      front: Object.freeze([4.85, 0, 2.221]),
+      rear: Object.freeze([-2.5, 0, 2.221]),
+    }),
     clips: Object.freeze({
       idle: 'viewmodel/anims/viewmodel_fnp45_idle.json',
       fire: 'viewmodel/anims/viewmodel_fnp45_fire.json',
@@ -547,6 +576,11 @@ export const WEAPONS = Object.freeze({
     viewmodelUrl: 'viewmodel/t6_wpn_pistol_kard_view_lod0.glb',
     worldModelUrl: 'enemies/t6_wpn_pistol_kard_world_lod1.glb',
     magazineUrl: null,
+    // Measured sight opening/post in j_gun coordinates (inches).
+    adsSightAnchors: Object.freeze({
+      front: Object.freeze([7.5, 0, 2.999]),
+      rear: Object.freeze([-1.5, 0, 2.999]),
+    }),
     clips: Object.freeze({
       idle: 'viewmodel/anims/viewmodel_kard_idle.json',
       fire: 'viewmodel/anims/viewmodel_kard_fire.json',
@@ -574,6 +608,9 @@ export const WEAPONS = Object.freeze({
     viewmodelUrl: 'viewmodel/t6_wpn_pistol_b2023r_view_lod0.glb',
     worldModelUrl: 'enemies/t6_wpn_pistol_b2023r_world_lod1.glb',
     magazineUrl: null,
+    adsSightAnchors: Object.freeze({
+      rear: Object.freeze([-2.204, 0, 2.377]),
+    }),
     clips: Object.freeze({
       idle: 'viewmodel/anims/viewmodel_beretta2023r_idle.json',
       fire: 'viewmodel/anims/viewmodel_beretta2023r_fire.json',

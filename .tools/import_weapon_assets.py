@@ -58,6 +58,11 @@ VIEW_MODELS = (
     "t6_wpn_sniper_ballista_view_lod0",
     "t6_wpn_sniper_svu_view_lod0",
     "t6_wpn_sniper_xpr50_view_lod0",
+    "t6_wpn_sniper_dsr50_scope_view_lod0",
+    "t6_wpn_sniper_ballista_scope_view_lod0",
+    "t6_wpn_sniper_svu_scope_view_lod0",
+    "t6_wpn_sniper_xpr50_scope_view_lod0",
+
     "t6_attach_mag_dsr50_view_lod0",
     "t6_attach_mag_ballista_view_lod0",
     "t6_attach_mag_svu_view_lod0",
