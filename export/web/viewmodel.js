@@ -80,9 +80,9 @@ const SPRINT_POSE = Object.freeze({
   x: 0.2,
   y: -1.2,
   z: -0.5,
-  // Close to the camera so the arms behind it barely move while the
-  // muzzle out front does the travelling.
-  pivot: new THREE.Vector3(0, -3, -6),
+  // Keep the rotation centre near the shoulders. A pivot six units forward
+  // swung the SCAR/Ballista sleeves through the eye during downward look lag.
+  pivot: new THREE.Vector3(0, -3, -3),
 });
 
 // How the walk bob changes as sprintBlend rises: stride rate drops by `slow`,

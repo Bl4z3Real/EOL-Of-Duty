@@ -54,7 +54,7 @@ Usage:
   npm run ai:game -- sniper-test
   npm run ai:game -- mobile-test
   npm run ai:game -- graphics-test [fallback]
-  npm run ai:game -- record [seconds] [weapon]
+  npm run ai:game -- record [seconds] [weapon|sprint]
 
 Environment:
   AI_GAME_HEADED=1             Show the controlled browser window
@@ -353,17 +353,41 @@ async function run() {
       );
       await page.evaluate(() => globalThis.hijacked.debug.pause());
     } else if (command === 'record') {
-      if (commandOption) {
+      const sprintProbe = commandOption === 'sprint';
+      const recordWeapon = sprintProbe ? 'scar' : commandOption;
+      if (recordWeapon) {
         const selected = await page.evaluate(
           (name) => globalThis.hijacked.debug.selectWeapon(name),
-          commandOption,
+          recordWeapon,
         );
-        if (selected !== commandOption) throw new Error(`Could not select weapon: ${commandOption}`);
+        if (selected !== recordWeapon) throw new Error(`Could not select weapon: ${recordWeapon}`);
+      }
+      if (sprintProbe) {
+        await page.mouse.move(640, 40);
+        await page.evaluate(() => {
+          const debug = globalThis.hijacked.debug;
+          debug.setEnemiesActive(false);
+          const eye = debug.getState().player.eye;
+          debug.lookAt([eye[0] - 1000, eye[1], eye[2]]);
+        });
       }
       await page.evaluate(() => globalThis.hijacked.debug.resume());
       await page.keyboard.down('w');
       let fireMilliseconds = 0;
-      if (commandOption) {
+      if (sprintProbe) {
+        await page.keyboard.down('Shift');
+        await page.waitForTimeout(750);
+        await page.screenshot({ path: path.join(artifactRoot, 'sprint-forward.png') });
+        await page.mouse.move(640, 690, { steps: 12 });
+        const down = await page.evaluate(() => globalThis.hijacked.debug.getState());
+        await writeJson('sprint-down-state.json', down);
+        await page.screenshot({ path: path.join(artifactRoot, 'sprint-down.png') });
+        inputProbe = { checks: {
+          sprinting: down.weapon.sprinting,
+          lookingDown: down.player.forward[1] < -0.9,
+        } };
+        fireMilliseconds = 1000;
+      } else if (commandOption) {
         fireMilliseconds = Math.min(750, recordSeconds * 500);
         await page.mouse.down({ button: 'left' });
         await page.waitForTimeout(fireMilliseconds);
@@ -372,6 +396,7 @@ async function run() {
       }
       await page.waitForTimeout(Math.max(0, recordSeconds * 1000 - fireMilliseconds));
       await page.keyboard.up('w');
+      if (sprintProbe) await page.keyboard.up('Shift');
       await page.evaluate(() => globalThis.hijacked.debug.pause());
     }
 
@@ -411,6 +436,7 @@ async function run() {
       safeSpawnChanged: distance(inputProbe.before.player.feet, state.player.feet) > 100,
       noBrowserErrors: errors.length === 0,
     } : {
+      ...(inputProbe?.checks ?? {}),
       ready: state.ready === true,
       playerAvailable: Boolean(state.player),
       sixEnemiesLoaded: state.enemies.length === 6,

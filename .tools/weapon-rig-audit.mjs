@@ -33,9 +33,15 @@ window.loadRig=async id=>{
  rigs[id]={vm,def,seatedPosition,seatedRotation};return true;
 };
 window.poseRig=(id,pose,time=0)=>{
- const {vm,def,seatedPosition,seatedRotation}=rigs[id];vm.resetActions();vm.bobAmp=vm.sprintBlend=0;vm.swayRot.set(0,0);vm.swayPos.set(0,0);
+ const {vm,def,seatedPosition,seatedRotation}=rigs[id];vm.resetActions();vm.bobAmp=vm.sprintBlend=0;vm.swayRot.set(0,0);vm.swayPos.set(0,0);vm.bobTime=vm.airTime=0;vm.lookVel.set(0,0);vm.pendingLook.set(0,0);
  vm.mixer.update(0);
- if(pose==='ads'){vm.setAiming(true);vm.update(1);vm.root.visible=true;}
+ if(pose.startsWith('sprint')){
+   for(let t=0;t<time;){
+     const dt=Math.min(1/120,time-t);
+     if(t>time-0.25)vm.addLook(pose==='sprintDownLeft'?-24:pose==='sprintDownRight'?24:0,24);
+     vm.update(dt,{speed:900,moving:true,sprinting:true,grounded:true});t+=dt;
+   }
+ }else if(pose==='ads'){vm.setAiming(true);vm.update(1);vm.root.visible=true;}
  else if(pose.startsWith('reload')){
    vm.reload(pose==='reloadEmpty');
    const action=pose==='reloadEmpty'?vm.reloadEmptyAction:vm.reloadAction;
@@ -53,7 +59,17 @@ window.poseRig=(id,pose,time=0)=>{
  const fresh=vm.spareMagazine?.getObjectByName('tag_clip_spare')??vm.root.getObjectByName('tag_clip_full')??vm.root.getObjectByName('tag_clip');
  const freshRotation=gun.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(fresh.getWorldQuaternion(new THREE.Quaternion()));
  const seatError=new THREE.Vector3().fromArray(local(fresh)).distanceTo(seatedPosition);
- return {id,pose,time,seatError,seatAngle:freshRotation.angleTo(seatedRotation),front:point(front),rear:point(rear),ads:vm.adsPos.toArray(),scope:!!vm.scopeRoot,
+ // The upper 45% must remain clear while sprinting. Read the rendered
+ // framebuffer: a sleeve through the near plane can cover it despite valid bones.
+ let upperCoverage=0;
+ if(pose.startsWith('sprint')){
+   const gl=renderer.getContext(),pixels=new Uint8Array(1280*324*4);
+   gl.readPixels(0,396,1280,324,gl.RGBA,gl.UNSIGNED_BYTE,pixels);
+   for(let i=0;i<pixels.length;i+=4){
+     if(Math.abs(pixels[i]-128)+Math.abs(pixels[i+1]-147)+Math.abs(pixels[i+2]-164)>6)upperCoverage++;
+   }
+ }
+ return {id,pose,time,upperCoverage,seatError,seatAngle:freshRotation.angleTo(seatedRotation),front:point(front),rear:point(rear),ads:vm.adsPos.toArray(),scope:!!vm.scopeRoot,
    magazine:local(vm.magazineRoot),spare:local(vm.spareMagazine),magVisible:vm.magazineRoot?.visible,
    spareVisible:vm.spareMagazine?.visible,reloading:vm.reloading,
    tags:Object.fromEntries(['tag_clip','tag_clip1','tag_clip_full','tag_weapon','j_wrist_le','tag_sights','tag_sights_on'].map(n=>[n,local(vm.root.getObjectByName(n))]))};
@@ -88,7 +104,7 @@ try {
  for(const def of Object.values(WEAPONS).filter(d=>!process.env.RIG_WEAPONS||process.env.RIG_WEAPONS.split(',').includes(d.id))){
   process.stdout.write(def.id+'\n');await page.evaluate(id=>loadRig(id),def.id);
   const durations=await page.evaluate(id=>['reload','reloadEmpty'].map(k=>rigs[id].vm.clips.get(k).duration),def.id);
-  for(const [pose,time] of [['hip',0],['ads',0],...durations.flatMap((d,i)=>[0.25,0.5,0.75,0.98].map(t=>[i?'reloadEmpty':'reload',t*d]))]){
+  for(const [pose,time] of [['hip',0],['ads',0],...durations.flatMap((d,i)=>[0.25,0.5,0.75,0.98].map(t=>[i?'reloadEmpty':'reload',t*d])),...(process.env.RIG_MOTION?['sprintDown','sprintDownLeft','sprintDownRight'].flatMap(p=>[1,1.25,1.5,1.75,2].map(t=>[p,t])):[])]){
    states.push(await page.evaluate(([id,pose,time])=>poseRig(id,pose,time),[def.id,pose,time]));
    await page.screenshot({path:path.join(out,`${def.id}-${pose}-${time.toFixed(3)}.png`)});
   }
@@ -105,6 +121,7 @@ if(errors.length)throw Error(errors.join('\n'));
 assert.ok(states.length, 'No weapons matched RIG_WEAPONS');
 const checks={};
 for(const state of states){
+ if(state.pose.startsWith('sprint'))checks[state.id+'-'+state.pose+'-'+state.time]=state.upperCoverage===0;
  if(state.pose==='ads'){
   for(const name of ['front','rear']){
    const p=state[name];checks[state.id+'-'+name]=Boolean(p && Math.hypot(p[0]*640,p[1]*360)<0.5);
