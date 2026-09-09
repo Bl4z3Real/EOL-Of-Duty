@@ -1,8 +1,12 @@
 import * as THREE from 'three';
+import { loadGltf } from './load-gltf.js';
+
+import { AdsBlend } from './gunplay.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { createMuzzleFlashTexture } from './weapon-effects.js';
 import { parseNotetracks, NotetrackTimeline } from './notetracks.js';
+import { WEAPON_CAMOS, WEAPON_CAMO_IDS, DEFAULT_WEAPON_CAMO, findCamo, nextCamo } from './skins.js';
 
 // The exported viewhands skeleton keeps the engine's view axes in tag_view's
 // local space: X forward (down the barrel), Y left, Z up. This basis maps that
@@ -15,11 +19,9 @@ const VIEW_TO_CAMERA = new THREE.Matrix4().makeBasis(
 
 const { clamp, damp } = THREE.MathUtils;
 
-const CUSTOM_CAMOS = Object.freeze({
-  openai: './images/openai-camo.webp',
-  claude: './images/claude-camo.webp',
-});
-const CAMO_MATERIAL_PATTERN = /_camo\d*$/i;
+// The camo catalog lives in skins.js; T6 paints a camo onto every `_camoN`
+// material of a gun and leaves the rest (sights, magazine well, tritium) alone.
+export const CAMO_MATERIAL_PATTERN = /_camo\d*$/i;
 // Names the weapon rigs use for the tag the fresh magazine rides in on. Only
 // the rigs that animate two magazines carry one; see mountSpareMagazine().
 const SPARE_MAGAZINE_TAGS = Object.freeze(['tag_clip_full', 'tag_clip1']);
@@ -56,6 +58,20 @@ const SPRINT_BOB = Object.freeze({
 });
 
 const BOB_GROUND_GRACE = 0.25;
+// Where a grenade sits in the right palm, in the wrist joint's frame (inches).
+const GRENADE_PALM_OFFSET = Object.freeze([3.2, -0.6, 1.4]);
+// The M67 body's material carries no colour map in the export; this is the
+// olive drab it should read as. Shared with grenades.js for the thrown body.
+export const GRENADE_BODY_COLOR = 0x3b4634;
+export function tintUntexturedGrenade(mesh) {
+  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  for (const material of materials) {
+    if (!material || material.map || material.userData.grenadeTinted) continue;
+    material.color?.set(GRENADE_BODY_COLOR);
+    if ('roughness' in material) material.roughness = 0.75;
+    material.userData.grenadeTinted = true;
+  }
+}
 
 // The cue the clips fire as the empty magazine is released, which is the instant
 // the fresh one takes over as the magazine the reload is about; see
@@ -88,11 +104,15 @@ function findNode(root, name) {
   return found;
 }
 
-function applyCustomCamo(root, texture) {
+/**
+ * Paint a camo tile onto every `_camo` material under `root`. Shared with the
+ * bots' world weapons, which carry the same material names.
+ */
+export function applyCustomCamo(root, texture, { repeat = 3 } = {}) {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(3, 3);
+  texture.repeat.set(repeat, repeat);
   texture.needsUpdate = true;
 
   root.traverse((object) => {
@@ -127,9 +147,13 @@ export class Viewmodel {
     adsDistance = 7,
     adsEyeRelief = 3.5,
     adsSightAnchors = null,
-    camo = 'openai',
+    adsTransInTime = 0.25,
+    adsTransOutTime = 0.25,
+    camo = DEFAULT_WEAPON_CAMO,
   } = {}) {
     this.baseFov = fov;
+    // Raise and lower on the weapon file's adsTransInTime / adsTransOutTime.
+    this.adsTransition = new AdsBlend({ adsTransInTime, adsTransOutTime });
     this.adsFov = adsFov;
     this.adsDistance = adsDistance;
     this.adsEyeRelief = adsEyeRelief;
@@ -201,19 +225,36 @@ export class Viewmodel {
     this.weaponRoot = null;
     this.magazineRoot = null;
     this.spareMagazine = null;
-    this.camo = Object.hasOwn(CUSTOM_CAMOS, camo) ? camo : 'openai';
+    this.camo = findCamo(camo) ? camo : DEFAULT_WEAPON_CAMO;
     this.camoTextures = new Map();
     this.camoRoots = [];
+    // Melee: the knife rides tag_knife_attach on the hands for the swing,
+    // then goes away again. Pistols whip with their own clip and no knife.
+    this.knifeRoot = null;
+    this.meleeAction = null;
+    this.meleeing = false;
+    this.meleeTimer = 0;
+    // Grenade throws: the gun drops out of view, a grenade body sits on
+    // tag_weapon for the pull-pin and throw clips, then the gun comes back.
+    this.grenadeRoot = null;
+    this.grenadeModels = new Map();
+    this.pullPinAction = null;
+    this.throwAction = null;
+    this.throwing = false;
+    this.throwPhase = null;
+    this.onThrowRelease = null;
+    this.onMeleeStrike = null;
   }
 
   get availableCamos() {
-    return Object.keys(CUSTOM_CAMOS);
+    return WEAPON_CAMO_IDS;
   }
 
   setCamo(name) {
     const texture = this.camoTextures.get(name);
     if (!texture) return false;
-    for (const root of this.camoRoots) applyCustomCamo(root, texture);
+    const repeat = findCamo(name)?.repeat ?? 3;
+    for (const root of this.camoRoots) applyCustomCamo(root, texture, { repeat });
     this.camo = name;
     return true;
   }
@@ -221,10 +262,8 @@ export class Viewmodel {
   // Reports the camo actually on the gun, not the one asked for: a texture that
   // failed to load leaves setCamo a no-op, and the caller's key binding and the
   // debug state both read this back as the current skin.
-  cycleCamo() {
-    const names = this.availableCamos;
-    const next = names[(names.indexOf(this.camo) + 1) % names.length];
-    this.setCamo(next);
+  cycleCamo(step = 1) {
+    this.setCamo(nextCamo(this.camo, step, this.availableCamos));
     return this.camo;
   }
 
@@ -274,7 +313,7 @@ export class Viewmodel {
     manager.setURLModifier((url) => (url.endsWith('.dds') ? `${url.slice(0, -4)}.webp` : url));
     const loader = new GLTFLoader(manager);
     const textureLoader = new THREE.TextureLoader(manager);
-    const load = (url, label) => loader.loadAsync(url, (event) => onProgress?.(label, event));
+    const load = (url, label) => loadGltf(loader, url, (event) => onProgress?.(label, event));
     const [hands, weapon, magazine, camoTextures] = await Promise.all([
       load(handsUrl, 'hands'),
       load(weaponUrl, 'weapon'),
@@ -284,13 +323,20 @@ export class Viewmodel {
           return null;
         })
         : Promise.resolve(null),
-      Promise.all(Object.entries(CUSTOM_CAMOS).map(async ([name, url]) => [
-        name,
-        await textureLoader.loadAsync(url),
-      ])),
+      // Camo tiles are small (a few KB each), so the whole catalog loads with
+      // the gun and a switch is instant. A tile that fails to load is left
+      // out and setCamo() refuses it, so a bad file cannot strip the gun.
+      Promise.all(WEAPON_CAMOS.map(async (camo) => {
+        try {
+          return [camo.id, await textureLoader.loadAsync(camo.url)];
+        } catch (error) {
+          console.warn(`camo ${camo.id} unavailable:`, error);
+          return null;
+        }
+      })),
     ]);
 
-    this.camoTextures = new Map(camoTextures);
+    this.camoTextures = new Map(camoTextures.filter(Boolean));
     this.camoRoots = [weapon.scene, ...(magazine ? [magazine.scene] : [])];
     this.setCamo(this.camo);
 
@@ -571,6 +617,18 @@ export class Viewmodel {
         if (bone.pos?.values?.length) {
           const times = bone.pos.frames.map((frame) => frame / data.fps);
           const values = bone.pos.values.slice();
+          // Magazine displacements are authored in the engine's frame, X down
+          // the barrel, Y left, Z up, but the attachment root they move under
+          // was converted to Y up. Without this swap the drop out of the well
+          // plays sideways and the hand's offset plays as height, so the fresh
+          // magazine arrives from beside the gun instead of from underneath.
+          if (MAGAZINE_TAGS.has(bone.name)) {
+            for (let i = 0; i < values.length; i += 3) {
+              const left = values[i + 1];
+              values[i + 1] = values[i + 2];
+              values[i + 2] = -left;
+            }
+          }
           // Magazine channels are authored as displacements, so each one has to
           // be anchored on the pose it is a displacement *from*. The two halves
           // of a mag change anchor on opposite ends. The magazine in the weapon
@@ -642,9 +700,154 @@ export class Viewmodel {
       this.introAdsFireAction = this.mixer.clipAction(this.clips.get('introAdsFire'));
       this.introAdsFireAction.setLoop(THREE.LoopOnce, 1);
     }
+    if (this.clips.has('melee') && this.idleAction) {
+      this.meleeAction = this.mixer.clipAction(this.clips.get('melee'));
+      this.meleeAction.setLoop(THREE.LoopOnce, 1);
+      this.meleeAction.clampWhenFinished = true;
+    }
+    if (this.clips.has('pullPin') && this.idleAction) {
+      this.pullPinAction = this.mixer.clipAction(this.clips.get('pullPin'));
+      this.pullPinAction.setLoop(THREE.LoopOnce, 1);
+      this.pullPinAction.clampWhenFinished = true;
+    }
+    if (this.clips.has('throw') && this.idleAction) {
+      this.throwAction = this.mixer.clipAction(this.clips.get('throw'));
+      this.throwAction.setLoop(THREE.LoopOnce, 1);
+      this.throwAction.clampWhenFinished = true;
+    }
+  }
+
+  /**
+   * Mounts the knife model on the hands' knife tag, hidden until a melee. The
+   * rifle rigs melee with knife_mp's clips, which animate tag_knife_attach.
+   */
+  attachKnife(knifeScene, tagName = 'tag_knife_attach') {
+    const tag = findNode(this.root, tagName);
+    if (!tag || !knifeScene) return false;
+    const knife = cloneSkinned(knifeScene);
+    // The knife's own j_gun is its origin; the clip poses the tag it hangs on.
+    knife.position.set(0, 0, 0);
+    knife.quaternion.identity();
+    knife.visible = false;
+    knife.traverse((object) => {
+      object.frustumCulled = false;
+      if (object.isMesh) {
+        object.castShadow = false;
+        object.receiveShadow = false;
+      }
+    });
+    tag.add(knife);
+    this.knifeRoot = knife;
+    return true;
+  }
+
+  /**
+   * Registers a grenade body to show in the hand while that kind is thrown.
+   * The M67 clips were authored for the grenade viewmodel, whose tag_weapon
+   * is parked well out of view, so the body rides the throwing hand's wrist
+   * with a small offset into the palm instead.
+   */
+  attachGrenadeModel(kind, grenadeScene, { tagName = 'j_wrist_ri', offset = GRENADE_PALM_OFFSET } = {}) {
+    const tag = findNode(this.root, tagName) ?? findNode(this.root, 'tag_weapon');
+    if (!tag || !grenadeScene) return false;
+    const body = cloneSkinned(grenadeScene);
+    body.position.fromArray(offset);
+    body.quaternion.identity();
+    body.visible = false;
+    body.traverse((object) => {
+      object.frustumCulled = false;
+      // The frag body ships with no colour map; untinted it renders white.
+      if (object.isMesh) tintUntexturedGrenade(object);
+    });
+    tag.add(body);
+    this.grenadeModels.set(kind, body);
+    return true;
+  }
+
+  /**
+   * Swing. Returns false while another action owns the hands. `strikeDelay`
+   * is when the blade lands, from the weapon file's meleeDelay; `duration`
+   * the lockout, meleeTime. The knife shows for rifle swings only.
+   */
+  melee({ strikeDelay = 0.125, duration = 0.8, knife = true } = {}) {
+    if (!this.ready || this.reloading || this.meleeing || this.throwing || !this.meleeAction) return false;
+    this.meleeing = true;
+    this.meleeTimer = duration;
+    this.meleeStrikeAt = strikeDelay;
+    this.meleeStruck = false;
+    for (const other of [this.fireAction, this.adsFireAction, this.introFireAction, this.introAdsFireAction]) other?.stop();
+    this.meleeAction.reset().fadeIn(0.04).play();
+    this.idleAction?.fadeOut(0.04);
+    if (this.knifeRoot) this.knifeRoot.visible = Boolean(knife);
+    this.startNotetracks('melee', this.meleeAction);
+    return true;
+  }
+
+  /**
+   * Begin a throw: the gun leaves the view, the grenade appears in the hand
+   * and the pin comes out. The fuse starts now when the grenade cooks.
+   */
+  beginThrow(kind) {
+    if (!this.ready || this.reloading || this.meleeing || this.throwing || !this.throwAction) return false;
+    this.throwing = true;
+    this.throwPhase = 'pin';
+    this.throwKind = kind;
+    this.setAiming(false);
+    for (const other of [this.fireAction, this.adsFireAction, this.introFireAction, this.introAdsFireAction]) other?.stop();
+    if (this.weaponRoot) this.weaponRoot.visible = false;
+    const body = this.grenadeModels.get(kind);
+    if (body) body.visible = true;
+    const action = this.pullPinAction ?? this.throwAction;
+    action.reset().fadeIn(0.06).play();
+    this.idleAction?.fadeOut(0.06);
+    this.startNotetracks(this.pullPinAction ? 'pullPin' : 'throw', action);
+    return true;
+  }
+
+  /** Let go: play the throw; `onThrowRelease` fires at the release frame. */
+  releaseThrow() {
+    if (!this.throwing || this.throwPhase === 'throw') return false;
+    this.throwPhase = 'throw';
+    this.pullPinAction?.fadeOut(0.05);
+    this.throwAction.reset().fadeIn(0.05).play();
+    this.startNotetracks('throw', this.throwAction);
+    this.throwReleased = false;
+    return true;
+  }
+
+  finishThrow() {
+    if (!this.throwing) return;
+    this.throwing = false;
+    this.throwPhase = null;
+    for (const body of this.grenadeModels.values()) body.visible = false;
+    if (this.weaponRoot) this.weaponRoot.visible = true;
+    this.throwAction?.fadeOut(0.1);
+    this.pullPinAction?.stop();
+    this.stopNotetracks();
+    this.idleAction?.reset().fadeIn(0.12).play();
   }
 
   onClipFinished(event) {
+    if (event.action === this.meleeAction) {
+      this.meleeing = false;
+      if (this.knifeRoot) this.knifeRoot.visible = false;
+      this.stopNotetracks();
+      this.idleAction.reset().fadeIn(0.1).play();
+      event.action.fadeOut(0.1);
+      return;
+    }
+    if (event.action === this.throwAction) {
+      if (!this.throwReleased) {
+        this.throwReleased = true;
+        this.onThrowRelease?.(this.throwKind);
+      }
+      this.finishThrow();
+      return;
+    }
+    if (event.action === this.pullPinAction) {
+      // Cooking: the hand holds the pinned grenade until the key is released.
+      return;
+    }
     if (event.action === this.reloadAction || event.action === this.reloadEmptyAction) {
       this.reloading = false;
       this.showSpareMagazine(false);
@@ -662,7 +865,7 @@ export class Viewmodel {
 
   reload(empty = false) {
     const action = empty && this.reloadEmptyAction ? this.reloadEmptyAction : this.reloadAction;
-    if (!this.ready || !action || this.reloading) return false;
+    if (!this.ready || !action || this.reloading || this.meleeing || this.throwing) return false;
     this.reloading = true;
     this.fireAction?.stop();
     this.adsFireAction?.stop();
@@ -737,7 +940,7 @@ export class Viewmodel {
   }
 
   fire({ intro = false } = {}) {
-    if (!this.ready || this.reloading) return false;
+    if (!this.ready || this.reloading || this.meleeing || this.throwing) return false;
     const aiming = this.aimBlend > 0.5;
     const action = intro
       ? (aiming && this.introAdsFireAction ? this.introAdsFireAction : this.introFireAction)
@@ -793,6 +996,25 @@ export class Viewmodel {
         this.onNotetrack?.(cue);
       }
     }
+    if (this.meleeing) {
+      this.meleeTimer = Math.max(0, this.meleeTimer - dt);
+      // The blade lands meleeDelay into the swing, not at the end of the clip.
+      if (!this.meleeStruck && this.meleeAction && this.meleeAction.time >= this.meleeStrikeAt) {
+        this.meleeStruck = true;
+        this.onMeleeStrike?.();
+      }
+      if (this.meleeTimer <= 0 && !this.meleeAction?.isRunning()) {
+        this.meleeing = false;
+        if (this.knifeRoot) this.knifeRoot.visible = false;
+      }
+    }
+    if (this.throwing && this.throwPhase === 'throw' && !this.throwReleased && this.throwAction) {
+      // The M67 throw lets go about a third of the way through the clip.
+      if (this.throwAction.time >= this.throwAction.getClip().duration * 0.35) {
+        this.throwReleased = true;
+        this.onThrowRelease?.(this.throwKind);
+      }
+    }
     this.flashTime = Math.max(0, this.flashTime - dt);
     if (this.muzzleFlash) {
       const flash = clamp(this.flashTime / 0.045, 0, 1);
@@ -828,8 +1050,8 @@ export class Viewmodel {
       8,
       dt,
     );
-    // Reloading cancels the sight picture, as in the game.
-    this.aimBlend = damp(this.aimBlend, this.aiming && !this.reloading ? 1 : 0, 12, dt);
+    // Reloading, a melee or a throw cancels the sight picture, as in the game.
+    this.aimBlend = this.adsTransition.update(dt, this.aiming && !this.reloading && !this.meleeing && !this.throwing);
     const sprint = this.sprintBlend;
 
     this.bobAmp = damp(this.bobAmp, movingGrounded ? speedFactor : 0, 8, dt);

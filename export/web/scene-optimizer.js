@@ -37,6 +37,8 @@ export function optimizeStaticScene(root, {
   root.traverse((object) => {
     objectsBefore += 1;
     if (!object.isMesh || object.isSkinnedMesh || object.isInstancedMesh || !object.visible) return;
+    // Parts that come off at runtime (destructibles.js) stay their own meshes.
+    if (object.userData?.keepSeparate) return;
     if (!object.geometry || !opaqueMaterial(object.material) || object.morphTargetInfluences) return;
     _relativeMatrix.multiplyMatrices(_rootInverse, object.matrixWorld);
     _position.setFromMatrixPosition(_relativeMatrix);

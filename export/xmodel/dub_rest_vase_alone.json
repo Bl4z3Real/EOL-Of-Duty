@@ -14,7 +14,7 @@
     "lods": [
         {
             "distance": 1500.0,
-            "file": "model_export/dub_rest_vase_alone_lod0.glb"
+            "file": "model_export/dub_rest_vase_alone_lod0.obj"
         }
     ],
     "rootBoneName": "vase",

@@ -33,7 +33,7 @@ export function webSampleName(rawPath) {
 
 // A RIFF header the browser will accept, sized from the payload we actually
 // have rather than from the field the dump wrote.
-function repairWav(buffer) {
+export function repairWav(buffer) {
   if (buffer.subarray(0, 4).toString('ascii') !== 'RIFF') return null;
   const dataOffset = buffer.indexOf('data', 12, 'ascii');
   if (dataOffset < 0) return null;
@@ -81,13 +81,16 @@ export function extractWeaponAudio({
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2);
   const dryRun = args.includes('--dry-run');
-  const weapons = args.filter((a) => !a.startsWith('--'));
+  // `--dump <folder>` names the soundbank dump when it is not artifacts/soundbanks.
+  const dumpIndex = args.indexOf('--dump');
+  const dumpDir = dumpIndex >= 0 ? path.resolve(args[dumpIndex + 1]) : undefined;
+  const weapons = args.filter((a, i) => !a.startsWith('--') && i !== dumpIndex + 1);
   if (!weapons.length) {
-    console.error('Usage: node .tools/extract_weapon_audio.mjs [--dry-run] <weaponId>...');
+    console.error('Usage: node .tools/extract_weapon_audio.mjs [--dry-run] [--dump <folder>] <weaponId>...');
     process.exit(1);
   }
 
-  const { written, missing } = extractWeaponAudio({ weapons, dryRun });
+  const { written, missing } = extractWeaponAudio({ weapons, dryRun, ...(dumpDir ? { dumpDir } : {}) });
   for (const { name, changed, bytes } of written) {
     console.log(`  ${changed ? (dryRun ? 'would write' : 'wrote     ') : 'unchanged '} ${name.padEnd(30)} ${bytes}`);
   }

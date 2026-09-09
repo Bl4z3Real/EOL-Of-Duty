@@ -21,8 +21,12 @@ function sliceBuffer(buffer, descriptor) {
   return buffer.slice(descriptor.byteOffset, descriptor.byteOffset + descriptor.byteLength);
 }
 
+// The format token named the map before there was more than one; bakes
+// from that time are still valid.
+export const COLLISION_FORMATS = Object.freeze(['collision-bvh-v1', 'hijacked-collision-bvh-v1']);
+
 export function deserializeCollisionWorld(metadata, binary) {
-  if (metadata?.format !== 'hijacked-collision-bvh-v1') {
+  if (!COLLISION_FORMATS.includes(metadata?.format)) {
     throw new Error(`unsupported collision format ${metadata?.format ?? 'unknown'}`);
   }
   const positions = typedArray(binary, metadata.layout.position);

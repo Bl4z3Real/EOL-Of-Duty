@@ -13,7 +13,7 @@
     "lods": [
         {
             "distance": 5508.07666015625,
-            "file": "model_export/dub_flower_vase_dp12_lod0.glb"
+            "file": "model_export/dub_flower_vase_dp12_lod0.obj"
         }
     ],
     "rootBoneName": "destructible12_lod0",

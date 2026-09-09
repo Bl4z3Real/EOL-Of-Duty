@@ -49,6 +49,12 @@ body.touch-mode canvas { touch-action: none; }
 .touch-jump { right: var(--touch-right); bottom: calc(var(--touch-bottom) + 92px); }
 .touch-crouch { right: calc(var(--touch-right) + 14px); bottom: calc(var(--touch-bottom) + 20px); }
 .touch-reload { right: calc(var(--touch-right) + 94px); bottom: var(--touch-bottom); }
+.touch-equipment { width: 48px; height: 48px; bottom: calc(var(--touch-bottom) + 174px); border-radius: 12px; }
+.touch-switch { left: var(--touch-left); }
+.touch-melee { left: calc(var(--touch-left) + 56px); }
+.touch-frag { left: calc(var(--touch-left) + 112px); }
+.touch-smoke { left: calc(var(--touch-left) + 168px); }
+.touch-equipment[aria-disabled="true"] { opacity: .45; }
 .touch-pause, .touch-scores { top: max(12px, env(safe-area-inset-top)); width: 46px; height: 46px; border-radius: 12px; }
 .touch-pause { right: var(--touch-right); }
 .touch-scores { right: calc(var(--touch-right) + 56px); }
@@ -68,6 +74,10 @@ body.touch-mode .fe-content { margin: auto; gap: 16px; flex-shrink: 0; }
 body.touch-mode .fe-btn { min-height: 44px; height: auto; line-height: 44px; touch-action: manipulation; }
 body.touch-mode .fe-class { max-height: none; }
 body.touch-mode .fe-class-grid { overflow: visible; }
+body.touch-mode .fe-class-tabs { flex-wrap: wrap; }
+body.touch-mode .fe-class-tab { min-height: 44px; min-width: 0; flex: 1 1 100px; touch-action: manipulation; }
+body.touch-mode .fe-maps .fe-map { display: block; min-height: 64px; touch-action: manipulation; }
+body.touch-mode #hud-equipment { display: none; }
 body.touch-mode #blocker[data-screen="welcome"] .touch-settings,
 body.touch-mode #blocker[data-screen="loading"] .touch-settings,
 body.touch-mode #blocker[data-screen="class"] .touch-settings,
@@ -110,6 +120,7 @@ body.touch-mode #scoreboard .touch-only[hidden] { display: none; }
   .touch-jump { bottom: calc(var(--touch-bottom) + 185px); }
   .touch-crouch { right: var(--touch-right); bottom: calc(var(--touch-bottom) + 18px); }
   .touch-reload { right: calc(var(--touch-right) + 74px); }
+  .touch-equipment { bottom: calc(var(--touch-bottom) + 270px); }
   .touch-hint { right: 14px; bottom: calc(var(--touch-bottom) + 253px); }
   body.touch-mode #match-status { top: max(128px, calc(env(safe-area-inset-top) + 118px)); max-width: 90%; }
   body.touch-mode #killfeed { top: 165px; }

@@ -14,15 +14,15 @@
     "lods": [
         {
             "distance": 300.0,
-            "file": "model_export/p6_pool_towel_unfolded_01_lod0.glb"
+            "file": "model_export/p6_pool_towel_unfolded_01_lod0.obj"
         },
         {
             "distance": 800.0,
-            "file": "model_export/p6_pool_towel_unfolded_01_lod1.glb"
+            "file": "model_export/p6_pool_towel_unfolded_01_lod1.obj"
         },
         {
             "distance": 5577.14453125,
-            "file": "model_export/p6_pool_towel_unfolded_01_lod2.glb"
+            "file": "model_export/p6_pool_towel_unfolded_01_lod2.obj"
         }
     ],
     "rootBoneName": "p6_pool_towel_unfolded_01_lod0",

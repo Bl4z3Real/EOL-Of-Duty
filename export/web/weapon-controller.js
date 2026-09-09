@@ -5,6 +5,10 @@ export class WeaponController {
     roundsPerMinute = 750,
     initialRoundsPerMinute = null,
     initialShotCount = 0,
+    // 'auto' fires while the trigger is held, 'single' once per pull, and
+    // 'burst' `burstCount` rounds per pull at the weapon's cadence.
+    fireMode = 'auto',
+    burstCount = 3,
     onFire = null,
     onEmpty = null,
   } = {}) {
@@ -21,6 +25,8 @@ export class WeaponController {
     this.shotInterval = 60 / roundsPerMinute;
     this.initialShotInterval = initialShotCount > 0 ? 60 / initialRoundsPerMinute : null;
     this.initialShotCount = Math.max(0, Math.floor(initialShotCount));
+    this.fireMode = ['auto', 'single', 'burst'].includes(fireMode) ? fireMode : 'auto';
+    this.burstCount = Math.max(1, Math.floor(Number(burstCount) || 1));
     this.onFire = onFire;
     this.onEmpty = onEmpty;
 
@@ -47,6 +53,13 @@ export class WeaponController {
 
   get canReload() {
     return !this.reloading && this.magazine < this.magazineSize && this.reserveAmmo > 0;
+  }
+
+  /** Rounds one trigger pull may still fire: unbounded for automatics. */
+  get shotsLeftInPull() {
+    if (this.fireMode === 'single') return Math.max(0, 1 - this.triggerShotCount);
+    if (this.fireMode === 'burst') return Math.max(0, this.burstCount - this.triggerShotCount);
+    return Infinity;
   }
 
   setTrigger(held) {
@@ -89,12 +102,18 @@ export class WeaponController {
 
     if (!this.triggerHeld || !canFire || this.reloading) return 0;
     if (this.immediateShot) {
-      this.cooldown = 0;
+      // An automatic answers a fresh pull at once. Semi-automatics and bursts
+      // keep their cadence: a pull inside the cooldown waits it out, so the
+      // trigger cannot be tapped faster than the weapon file's fireTime.
+      if (this.fireMode === 'auto') this.cooldown = 0;
       this.immediateShot = false;
     }
 
     let shots = 0;
     while (this.cooldown <= 0 && shots < 4) {
+      // A semi-automatic or burst weapon has spent its pull; the trigger has
+      // to be released and pulled again for more.
+      if (this.shotsLeftInPull <= 0) break;
       if (this.magazine <= 0) {
         if (!this.emptyNotified) {
           this.emptyNotified = true;
@@ -110,7 +129,10 @@ export class WeaponController {
       const interval = this.initialShotInterval && this.triggerShotCount < this.initialShotCount
         ? this.initialShotInterval
         : this.shotInterval;
-      this.cooldown += interval;
+      // An automatic banks a little negative cooldown so a long frame can catch
+      // up its cadence; a semi-automatic or burst counts from the shot itself,
+      // so a quick second pull cannot beat the weapon file's fireTime.
+      this.cooldown = this.fireMode === 'auto' ? this.cooldown + interval : Math.max(this.cooldown, 0) + interval;
       this.onFire?.({
         fireCount: this.fireCount,
         triggerShotCount: this.triggerShotCount,

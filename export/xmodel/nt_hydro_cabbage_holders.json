@@ -1,0 +1,33 @@
+{
+    "$schema": "http://openassettools.dev/schema/xmodel.v1.json",
+    "_game": "t6",
+    "_type": "xmodel",
+    "_version": 2,
+    "collLod": 3,
+    "flags": 2621440,
+    "lightingOriginOffset": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.5
+    },
+    "lightingOriginRange": 0.5,
+    "lods": [
+        {
+            "distance": 500.0,
+            "file": "model_export/nt_hydro_cabbage_holders_lod0.obj"
+        },
+        {
+            "distance": 1000.0,
+            "file": "model_export/nt_hydro_cabbage_holders_lod1.obj"
+        },
+        {
+            "distance": 2000.0,
+            "file": "model_export/nt_hydro_cabbage_holders_lod2.obj"
+        },
+        {
+            "distance": 19810.9453125,
+            "file": "model_export/nt_hydro_cabbage_holders_lod3.obj"
+        }
+    ],
+    "type": "rigid"
+}

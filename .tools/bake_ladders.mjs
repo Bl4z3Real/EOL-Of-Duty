@@ -14,27 +14,37 @@ import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
+import { DEFAULT_MAP, MAP_IDS, findMap, mapFiles } from '../export/web/maps.js';
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const DEFAULT_INPUT = 'export/web/hijacked_collision.gltf';
-const DEFAULT_OUTPUT = 'export/web/hijacked_ladders.json';
 const DEFAULT_PATTERN = 'ladder';
 
 function absolute(filename) {
   return path.isAbsolute(filename) ? filename : path.resolve(ROOT, filename);
 }
 
+function resolveMap(value) {
+  const map = findMap(value ?? DEFAULT_MAP);
+  if (!map) throw new Error(`unknown map ${value}; expected one of ${MAP_IDS.join(', ')}`);
+  return map;
+}
+
 function parseArgs(argv) {
-  const args = { input: DEFAULT_INPUT, output: DEFAULT_OUTPUT, pattern: DEFAULT_PATTERN };
+  const args = { map: DEFAULT_MAP, input: null, output: null, pattern: DEFAULT_PATTERN };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--input' || arg === '-i') args.input = argv[++i];
+    if (arg === '--map' || arg === '-m') args.map = argv[++i];
+    else if (arg === '--input' || arg === '-i') args.input = argv[++i];
     else if (arg === '--output' || arg === '-o') args.output = argv[++i];
     else if (arg === '--pattern' || arg === '-p') args.pattern = argv[++i];
     else if (arg === '--help' || arg === '-h') {
-      console.log('usage: node .tools/bake_ladders.mjs [--input collision.gltf] [--output ladders.json] [--pattern ladder]');
+      console.log('usage: node .tools/bake_ladders.mjs [--map mp_hijacked] [--input collision.gltf] [--output ladders.json] [--pattern ladder]');
       return null;
     } else throw new Error(`unknown argument ${arg}`);
   }
+  const files = mapFiles(resolveMap(args.map));
+  args.input ??= `export/web/${files.collisionGltf}`;
+  args.output ??= `export/web/${files.ladders}`;
   return args;
 }
 
@@ -206,7 +216,7 @@ async function main() {
 
   volumes.sort((a, b) => a.center[0] - b.center[0] || a.center[2] - b.center[2]);
   const metadata = {
-    format: 'hijacked-ladders-v1',
+    format: 'ladders-v1',
     source: path.relative(ROOT, input).replaceAll('\\', '/'),
     coordinateSystem: 'three-y-up',
     pattern: args.pattern,

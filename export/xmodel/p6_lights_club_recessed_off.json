@@ -14,15 +14,15 @@
     "lods": [
         {
             "distance": 500.0,
-            "file": "model_export/p6_lights_club_recessed_off_lod0.glb"
+            "file": "model_export/p6_lights_club_recessed_off_lod0.obj"
         },
         {
             "distance": 2000.0,
-            "file": "model_export/p6_lights_club_recessed_off_lod1.glb"
+            "file": "model_export/p6_lights_club_recessed_off_lod1.obj"
         },
         {
             "distance": 2117.07470703125,
-            "file": "model_export/p6_lights_club_recessed_off_lod2.glb"
+            "file": "model_export/p6_lights_club_recessed_off_lod2.obj"
         }
     ],
     "rootBoneName": "p6_lights_club_recessed_lod0",

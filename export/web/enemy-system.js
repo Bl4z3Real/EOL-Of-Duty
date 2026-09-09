@@ -1,7 +1,16 @@
 import * as THREE from 'three';
+import { loadGltf } from './load-gltf.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import * as SkeletonUtils from 'three/addons/utils/SkeletonUtils.js';
 import { enemyShotSpread, engagementPlan } from './enemy-tactics.js';
+import { WEAPONS, findWeapon, randomLoadout } from './weapons.js';
+import { WEAPON_BALLISTICS } from './weapon-ballistics.js';
+import { damageAtDistance } from './gunplay.js';
+import {
+  WEAPON_CAMOS, WEAPON_CAMO_IDS, DEFAULT_WEAPON_CAMO, findCamo, findSkin, dealSkins, randomPick,
+  SKINNABLE_TEXTURE_PATTERN,
+} from './skins.js';
+import { applyCustomCamo } from './viewmodel.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const MODEL_FORWARD_OFFSET = Math.PI / 2;
@@ -100,7 +109,20 @@ function optimizeEnemyMaterials(root) {
   });
 }
 
-function createBodyAtlas(root) {
+// The name a texture was authored under, from its image URL, for the skin
+// pattern match: `~-gc_chn_mp_pla_upper1_vest_c.png` -> `c_chn_mp_pla_upper1_vest_c`.
+function textureName(map) {
+  const source = map?.image?.currentSrc ?? map?.image?.src ?? map?.source?.data?.src ?? map?.name ?? '';
+  return String(source).split('/').pop().split('?')[0].replace(/\.[a-z0-9]+$/i, '').replace(/^~-g/, '');
+}
+
+/**
+ * Packs the body's textures into one atlas and returns the shared material.
+ * `skin` (see skins.js PLAYER_SKINS) recolours the clothing cells: a hue
+ * rotation, saturation and brightness through the canvas filter, then a tint
+ * multiplied over the result. Skin, gloves and visor cells are left alone.
+ */
+function createBodyAtlas(root, { skin = null, camoTexture = null } = {}) {
   const maps = [];
   const mapIndices = new Map();
   const register = (map) => {
@@ -128,11 +150,40 @@ function createBodyAtlas(root) {
     const y = Math.floor(index / columns) * cellSize;
     context.fillStyle = '#ffffff';
     context.fillRect(x, y, cellSize, cellSize);
-    if (map?.image) context.drawImage(map.image, x, y, cellSize, cellSize);
+    if (!map?.image) return;
+    const skinnable = skin && skin.id !== 'pla_assault' && SKINNABLE_TEXTURE_PATTERN.test(textureName(map));
+    if (skinnable && 'filter' in context) {
+      context.save();
+      context.filter = `hue-rotate(${skin.hue ?? 0}deg) saturate(${skin.saturation ?? 1}) brightness(${skin.lightness ?? 1})`;
+      context.drawImage(map.image, x, y, cellSize, cellSize);
+      context.restore();
+      if (Array.isArray(skin.tint)) {
+        context.save();
+        context.globalCompositeOperation = 'multiply';
+        const [r, g, b] = skin.tint.map((channel) => Math.round(Math.max(0, Math.min(1, channel)) * 255));
+        context.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        context.fillRect(x, y, cellSize, cellSize);
+        context.restore();
+      }
+      return;
+    }
+    // A camo tile stands in for the weapon's `_camo` diffuse, tiled the way the
+    // viewmodel tiles it, so the bot's gun wears the same camo as the player's.
+    if (camoTexture && map === camoTexture && camoTexture.image) {
+      const repeat = Math.max(1, Math.round(camoTexture.repeat?.x ?? 2));
+      const tile = cellSize / repeat;
+      for (let ty = 0; ty < repeat; ty += 1) {
+        for (let tx = 0; tx < repeat; tx += 1) {
+          context.drawImage(camoTexture.image, x + tx * tile, y + ty * tile, tile, tile);
+        }
+      }
+      return;
+    }
+    context.drawImage(map.image, x, y, cellSize, cellSize);
   });
 
   const texture = new THREE.CanvasTexture(canvas);
-  texture.name = 'enemy_body_atlas';
+  texture.name = skin ? `enemy_body_atlas_${skin.id}` : 'enemy_body_atlas';
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.flipY = false;
   texture.wrapS = THREE.ClampToEdgeWrapping;
@@ -145,7 +196,7 @@ function createBodyAtlas(root) {
   return { columns, rows, mapIndices, material };
 }
 
-function collapseBakedBody(root, atlas) {
+function collapseBakedBody(root, atlas, name = 'enemy_body_combined') {
   root.updateMatrixWorld(true);
   const rootInverse = root.matrixWorld.clone().invert();
   const sources = [];
@@ -200,7 +251,7 @@ function collapseBakedBody(root, atlas) {
   geometry.computeBoundingBox();
   geometry.computeBoundingSphere();
   const combined = new THREE.Mesh(geometry, atlas.material);
-  combined.name = 'enemy_body_combined';
+  combined.name = name;
   combined.frustumCulled = true;
   combined.castShadow = false;
   combined.receiveShadow = true;
@@ -364,7 +415,19 @@ class Enemy {
     this.burstShotsRemaining = 0;
     this.burstPauseTimer = 0;
     this.reloadTimer = 0;
-    this.magazine = manager.enemyMagazineSize;
+    // Each bot draws its own class: a rifle, a pistol, a camo for the rifle
+    // and an operator skin, all kept for the whole match through respawns.
+    this.loadout = manager.loadoutFor(index);
+    this.weaponId = this.loadout.primary;
+    this.weaponDefinition = findWeapon(this.weaponId) ?? WEAPONS.m27;
+    this.ballistics = WEAPON_BALLISTICS[this.weaponDefinition.id] ?? WEAPON_BALLISTICS.m27;
+    this.magazineSize = this.weaponDefinition.magazineSize ?? manager.enemyMagazineSize;
+    // Cadence from the weapon file, floored so a 1250 RPM burst gun does not
+    // hose the player; the burst and pause logic below still paces the fight.
+    this.shotInterval = Math.max(0.09, 60 / (this.weaponDefinition.roundsPerMinute ?? 375));
+    this.camo = manager.camoFor(index);
+    this.skin = manager.skinFor(index);
+    this.magazine = this.magazineSize;
     this.shotsFired = 0;
     this.suppressionTimer = 0;
     this.lineOfFireClear = false;
@@ -379,7 +442,6 @@ class Enemy {
     this.engaged = false;
     this.currentTarget = null;
     this.walkTime = Math.random() * Math.PI * 2;
-    this.deathBlend = 0;
     this.playerVisible = false;
     this.spawnPoint = {
       position: spawn.position.clone(),
@@ -399,11 +461,20 @@ class Enemy {
     // Every enemy reuses the same baked geometry buffers. Only one pose root
     // is visible at a time, so walking costs ordinary static-mesh rendering
     // instead of six independently skinned characters on every frame.
+    const weaponTemplate = manager.weaponTemplateFor(this.weaponId, this.camo);
+    const skinMaterial = manager.skinMaterialFor(this.skin);
     this.visualFrames = Object.fromEntries(Object.entries(manager.poseTemplates).map(([state, templates]) => [
       state,
       templates.map((template) => {
         const body = template.clone(true);
-        const weapon = manager.weaponTemplate.clone(true);
+        // The baked pose shares its geometry with every bot; the skin is the
+        // one thing that differs, so only the atlas material is swapped.
+        if (skinMaterial) {
+          body.traverse((object) => {
+            if (object.isMesh && object.name === 'enemy_body_combined') object.material = skinMaterial;
+          });
+        }
+        const weapon = weaponTemplate.clone(true);
         this.modelRoot.add(body);
         const mounts = attachWeapon(body, weapon, manager.weaponMounts[state]);
         this.modelRoot.remove(body);
@@ -425,9 +496,10 @@ class Enemy {
     this.showVisualFrame('idle', 0);
 
     this.hitboxes = [
+      // Regions only; the shooter's weapon file supplies the multipliers.
       makeHitbox(new THREE.BoxGeometry(18, 34, 15), new THREE.Vector3(0, 43, 0), this, 1, 'torso'),
-      makeHitbox(new THREE.SphereGeometry(7, 8, 6), new THREE.Vector3(0, 65, 0), this, 2, 'head'),
-      makeHitbox(new THREE.BoxGeometry(17, 29, 13), new THREE.Vector3(0, 16, 0), this, 0.75, 'legs'),
+      makeHitbox(new THREE.SphereGeometry(7, 8, 6), new THREE.Vector3(0, 65, 0), this, 1, 'head'),
+      makeHitbox(new THREE.BoxGeometry(17, 29, 13), new THREE.Vector3(0, 16, 0), this, 1, 'legs'),
     ];
     this.root.add(...this.hitboxes);
     manager.scene.add(this.root);
@@ -500,12 +572,11 @@ class Enemy {
     this.burstShotsRemaining = 0;
     this.burstPauseTimer = 0;
     this.reloadTimer = 0;
-    this.magazine = this.manager.enemyMagazineSize;
+    this.magazine = this.magazineSize;
     this.shotsFired = 0;
     this.suppressionTimer = 0;
     this.lineOfFireClear = false;
     this.movementSpeed = 0;
-    this.deathBlend = 0;
     this.playerVisible = false;
     this.modelRoot.position.y = 0;
     this.modelRoot.rotation.z = 0;
@@ -694,7 +765,7 @@ class Enemy {
     this.aimConvergence = this.playerVisible
       ? Math.min(1, this.aimConvergence + dt / this.manager.aimConvergeTime)
       : Math.max(0, this.aimConvergence - dt / this.manager.aimConvergeTime);
-    if (wasReloading && this.reloadTimer === 0) this.magazine = this.manager.enemyMagazineSize;
+    if (wasReloading && this.reloadTimer === 0) this.magazine = this.magazineSize;
 
     const combatState = this.state === 'attack' || this.state === 'reposition';
     if (!combatState || !this.playerVisible || this.manager.targetDead(this.currentTarget) ||
@@ -723,7 +794,7 @@ class Enemy {
     this.magazine -= 1;
     this.shotsFired += 1;
     this.burstShotsRemaining -= 1;
-    this.fireTimer = this.manager.enemyShotInterval * (0.9 + Math.random() * 0.2);
+    this.fireTimer = this.shotInterval * (0.9 + Math.random() * 0.2);
 
     if (this.magazine <= 0) {
       this.reloadTimer = this.manager.enemyReloadTime * (0.9 + Math.random() * 0.2);
@@ -740,9 +811,11 @@ class Enemy {
     if (this.dead) {
       if (!active) return;
       this.advanceVisual(dt);
-      this.deathBlend = Math.min(1, this.deathBlend + dt * 2.8);
-      this.modelRoot.rotation.z = -this.deathBlend * 1.35;
-      this.modelRoot.position.y = -this.deathBlend * 10;
+      // Settle onto the floor as the clip lays the body down. The clip already
+      // rotates the body flat, so no extra roll is added here; one used to be,
+      // and it turned the corpse feet-up.
+      const lift = this.manager.deathFloorLift?.[this.visualFrameIndex] ?? 0;
+      this.modelRoot.position.y += (lift - this.modelRoot.position.y) * Math.min(1, dt * 8);
       this.respawnTimer -= dt;
       if (this.respawnTimer <= 0) this.spawnAt(this.manager.respawnFor(this));
       return;
@@ -840,6 +913,13 @@ export class EnemyManager {
     minAttackRange = 320,
     searchDuration = 4.5,
     respawnDelay = 6,
+    // Bot rounds do their weapon file's damage by range, scaled by this so a
+    // six-bot lobby stays survivable: 24/33 keeps the M27 where the old flat
+    // figure had it and lets a FAL hit harder than a Type 25, as it should.
+    botDamageScale = 24 / 33,
+    random = Math.random,
+    // Optional: (from, to) -> true when something (smoke) blocks the view.
+    sightBlocked = null,
   }) {
     if (!scene || !navigation?.crowd || !collisionWorld || !player) {
       throw new Error('EnemyManager requires scene, crowd navigation, collision, and player');
@@ -851,7 +931,16 @@ export class EnemyManager {
       burstPauseMin, burstPauseMax, enemyMagazineSize, enemyReloadTime,
       reactionTimeMin, reactionTimeMax, friendlyFireRadius, combatSpacing,
       aimConvergeTime, minAttackRange, searchDuration, respawnDelay,
+      botDamageScale, random, sightBlocked,
     });
+    // Dealt once per match: loadouts, camos and skins by bot index.
+    this.loadouts = Array.from({ length: Math.max(0, count) }, () => randomLoadout(this.random));
+    this.camos = Array.from({ length: Math.max(0, count) }, () => randomPick(WEAPON_CAMO_IDS, this.random) ?? DEFAULT_WEAPON_CAMO);
+    this.skins = dealSkins(count, this.random);
+    this.weaponScenes = new Map();
+    this.weaponTemplates = new Map();
+    this.camoTextures = new Map();
+    this.skinMaterials = new Map();
     this.burstShotMin = Math.max(1, Math.floor(this.burstShotMin));
     this.burstShotMax = Math.max(this.burstShotMin, Math.floor(this.burstShotMax));
     this.burstPauseMax = Math.max(this.burstPauseMin, this.burstPauseMax);
@@ -899,27 +988,69 @@ export class EnemyManager {
       return `enemies/textures/${filename}.png`;
     });
     const loader = new GLTFLoader(loadingManager);
-    const loadModel = (url, label) => loader.loadAsync(url, (event) => onProgress?.(label, event));
-    const [body, weapon, clipData] = await Promise.all([
+    const textureLoader = new THREE.TextureLoader();
+    const loadModel = (url, label) => loadGltf(loader, url, (event) => onProgress?.(label, event));
+    // Every rifle the dealt loadouts carry, plus the fallback the export
+    // shipped with, so a bot whose model fails to load still has a gun.
+    const weaponIds = [...new Set(['m27', ...this.loadouts.map((loadout) => loadout.primary)])];
+    const weaponUrlFor = (id) => (id === 'm27' && weaponUrl ? weaponUrl : findWeapon(id)?.worldModelUrl ?? weaponUrl);
+    const camoIds = [...new Set(this.camos)];
+    const [body, weapons, clipData, camos] = await Promise.all([
       loadModel(bodyUrl, 'enemy'),
-      loadModel(weaponUrl, 'enemy weapon'),
+      Promise.all(weaponIds.map(async (id) => {
+        try {
+          return [id, (await loadModel(weaponUrlFor(id), 'enemy weapon')).scene];
+        } catch (error) {
+          console.warn(`bot weapon ${id} unavailable:`, error);
+          return null;
+        }
+      })),
       Promise.all(Object.entries(animations).map(async ([key, url]) => [key, await fetchJson(url)])),
+      Promise.all(camoIds.map(async (id) => {
+        const camo = findCamo(id) ?? WEAPON_CAMOS[0];
+        try {
+          const texture = await textureLoader.loadAsync(camo.url);
+          texture.colorSpace = THREE.SRGBColorSpace;
+          texture.repeat.set(camo.repeat ?? 2, camo.repeat ?? 2);
+          return [id, texture];
+        } catch (error) {
+          console.warn(`bot camo ${id} unavailable:`, error);
+          return null;
+        }
+      })),
     ]);
     optimizeEnemyMaterials(body.scene);
-    optimizeEnemyMaterials(weapon.scene);
     this.bodyTemplate = body.scene;
+    this.weaponScenes = new Map(weapons.filter(Boolean));
+    this.camoTextures = new Map(camos.filter(Boolean));
+    const fallbackScene = this.weaponScenes.get('m27') ?? this.weaponScenes.values().next().value;
+    if (!fallbackScene) throw new Error('no bot weapon model loaded');
+    const weapon = { scene: fallbackScene };
     this.weaponTemplate = weapon.scene;
     this.clips = Object.fromEntries(clipData.map(([key, data]) => [
       key,
       animationClip(key, data, this.bodyTemplate),
     ]));
     this.bodyAtlas = createBodyAtlas(this.bodyTemplate);
+    // One atlas material per dealt skin; the baked geometry is shared.
+    for (const skinId of new Set(this.skins)) {
+      const skin = findSkin(skinId);
+      if (!skin || skin.id === 'pla_assault') continue;
+      this.skinMaterials.set(skin.id, createBodyAtlas(this.bodyTemplate, { skin }).material);
+    }
     this.weaponAtlas = createBodyAtlas(this.weaponTemplate);
     this.poseTemplates = {
       idle: bakePoseSequence(this.bodyTemplate, this.clips.idle, 1, this.bodyAtlas),
       run: bakePoseSequence(this.bodyTemplate, this.clips.run, 20, this.bodyAtlas),
       death: bakePoseSequence(this.bodyTemplate, this.clips.death, 6, this.bodyAtlas, true),
     };
+    // pb_death_faceplant carries no root motion: the hips stay at standing
+    // height while the body swings horizontal, so the last frames float. Read
+    // each frame's lowest point and lower it to where the standing feet are.
+    const standingFloor = new THREE.Box3().setFromObject(this.poseTemplates.idle[0]).min.y;
+    this.deathFloorLift = this.poseTemplates.death.map(
+      (frame) => standingFloor - new THREE.Box3().setFromObject(frame).min.y,
+    );
     this.poseFrameRates = {
       idle: 1,
       run: this.poseTemplates.run.length / this.clips.run.duration,
@@ -933,12 +1064,61 @@ export class EnemyManager {
       run: solveWeaponCalibration(this.poseTemplates.run[0]),
       death: solveDeathMount(this.poseTemplates.idle[0], idleMount?.transform),
     };
-    this.bakedWeaponMeshCount = bakeSkinnedMeshes(this.weaponTemplate);
-    collapseBakedBody(this.weaponTemplate, this.weaponAtlas);
+    // The fallback template is baked plain; each bot's own rifle and camo is
+    // baked on demand by weaponTemplateFor().
+    const plainFallback = SkeletonUtils.clone(this.weaponTemplate);
+    optimizeEnemyMaterials(plainFallback);
+    this.bakedWeaponMeshCount = bakeSkinnedMeshes(plainFallback);
+    collapseBakedBody(plainFallback, createBodyAtlas(plainFallback), 'enemy_weapon_combined');
+    this.weaponTemplates.set('m27:', plainFallback);
     this.prepareNavigationPoints();
     const spawns = this.pickInitialSpawns();
     for (let i = 0; i < spawns.length; i += 1) this.enemies.push(new Enemy(this, spawns[i], i));
     return this;
+  }
+
+  loadoutFor(index) {
+    return this.loadouts[index] ?? randomLoadout(this.random);
+  }
+
+  camoFor(index) {
+    return this.camos[index] ?? DEFAULT_WEAPON_CAMO;
+  }
+
+  skinFor(index) {
+    return this.skins[index] ?? null;
+  }
+
+  skinMaterialFor(skinId) {
+    return this.skinMaterials.get(skinId) ?? null;
+  }
+
+  /**
+   * The baked world model for a rifle wearing a camo, built once per pair:
+   * the camo tile replaces the `_camo` materials' diffuse before the atlas is
+   * packed, then the skinned rig is baked to a static mesh as the body is.
+   */
+  weaponTemplateFor(weaponId, camoId) {
+    const scene = this.weaponScenes.get(weaponId);
+    const camoTexture = this.camoTextures.get(camoId) ?? null;
+    const key = scene ? `${weaponId}:${camoTexture ? camoId : ''}` : 'm27:';
+    if (this.weaponTemplates.has(key)) return this.weaponTemplates.get(key);
+    if (!scene) return this.weaponTemplates.get('m27:');
+    const template = SkeletonUtils.clone(scene);
+    if (camoTexture) applyCustomCamo(template, camoTexture, { repeat: camoTexture.repeat?.x ?? 2 });
+    optimizeEnemyMaterials(template);
+    const atlas = createBodyAtlas(template, { camoTexture });
+    bakeSkinnedMeshes(template);
+    // Named apart from the body mesh so a skin swap never repaints the rifle.
+    collapseBakedBody(template, atlas, 'enemy_weapon_combined');
+    this.weaponTemplates.set(key, template);
+    return template;
+  }
+
+  /** Damage one bot round does at a range: its rifle's falloff, scaled for the lobby. */
+  damageFor(enemy, distance) {
+    const base = damageAtDistance(enemy?.ballistics ?? WEAPON_BALLISTICS.m27, distance);
+    return (base > 0 ? base : this.enemyDamage) * this.botDamageScale;
   }
 
   prepareNavigationPoints() {
@@ -995,13 +1175,25 @@ export class EnemyManager {
     return this.enemies.flatMap((enemy) => enemy.dead ? [] : enemy.hitboxes);
   }
 
+  /** Living bots as blast and melee targets: { enemy, position (torso) }. */
+  get actors() {
+    return this.enemies.filter((enemy) => !enemy.dead).map((enemy) => ({
+      enemy,
+      position: this.targetPosition(enemy, new THREE.Vector3()),
+    }));
+  }
+
   // Returns what the shot actually did so the HUD can confirm it. A miss and a
   // hit on an already-dead body both report null.
+  // `baseDamage` may be a number or a function of (region, distance) so the
+  // caller can apply its weapon's range falloff and locational multipliers.
   handlePlayerHit(hit, baseDamage = 34) {
     const data = hit?.object?.userData?.enemyHit;
     if (!data?.enemy || data.enemy.dead) return null;
     const multiplier = data.multiplier ?? 1;
-    const damage = data.enemy.takeDamage(baseDamage * multiplier, hit, this.player);
+    const region = data.region ?? 'torso';
+    const base = typeof baseDamage === 'function' ? baseDamage(region, hit.distance ?? 0) : baseDamage;
+    const damage = data.enemy.takeDamage(base * multiplier, hit, this.player);
     return {
       enemy: data.enemy,
       region: data.region ?? 'torso',
@@ -1083,7 +1275,9 @@ export class EnemyManager {
     if (_forward.dot(_direction) < minimumDot) return false;
     this.raycaster.ray.set(_origin, _direction);
     const wall = this.collisionWorld.raycastFirst(this.raycaster.ray, 2, distance);
-    return !wall || wall.distance >= distance - 4;
+    if (wall && wall.distance < distance - 4) return false;
+    // Smoke stands between them: the bot loses the target like the game's do.
+    return !this.sightBlocked?.(_origin, _target);
   }
 
   enemyFire(enemy) {
@@ -1134,10 +1328,12 @@ export class EnemyManager {
       : _origin.clone().addScaledVector(_direction, this.raycaster.far);
     this.weaponEffects?.addTracer(_origin.clone(), end);
     this.weaponEffects?.addMuzzleFlash(_origin, _direction);
-    this.weaponEffects?.playEnemyShot(_origin, enemy.index);
-    if (hitPlayer) this.playerHealth?.takeDamage(this.enemyDamage, enemy);
-    else if (hitActor) hitActor.takeDamage(this.enemyDamage, null, enemy);
-    return { hitPlayer, hitActor: this.targetId(hitActor), spread };
+    this.weaponEffects?.playEnemyShot(_origin, enemy.index, enemy.weaponDefinition?.sourceId ?? 'hk416');
+    if (!hitPlayer) this.weaponEffects?.playWhizby?.(_origin, end);
+    const damage = this.damageFor(enemy, hitActor ? actorDistance : distance);
+    if (hitPlayer) this.playerHealth?.takeDamage(damage, enemy);
+    else if (hitActor) hitActor.takeDamage(damage, null, enemy);
+    return { hitPlayer, hitActor: this.targetId(hitActor), spread, damage };
   }
 
   canEnemyFire(candidate) {

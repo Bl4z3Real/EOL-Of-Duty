@@ -97,3 +97,38 @@ test('reload is invoked once per pointer press', () => {
   input.begin(1, 'reload', 0, 0);
   assert.equal(reloads, 2);
 });
+
+test('equipment and weapon actions keep independent pointer ownership', () => {
+  const actions = [];
+  const input = new TouchInput({ onAction: (...args) => actions.push(args) });
+  input.begin(1, 'move', 0, 0);
+  input.move(1, 0, -50);
+  for (const action of ['switch', 'melee', 'smoke']) {
+    input.begin(2, action, 100, 100);
+    assert.equal(input.begin(3, action, 200, 200), false);
+    input.move(2, 300, 300);
+    input.end(2);
+  }
+  assert.deepEqual(actions, [['switch'], ['melee'], ['smoke']]);
+  assert.equal(input.read().forward, 1);
+});
+
+test('frag release throws once; cancellation and reset cancel without throwing', () => {
+  const actions = [];
+  const input = new TouchInput({ onAction: (...args) => actions.push(args) });
+  input.begin(1, 'frag', 0, 0);
+  assert.equal(input.getState().frag, true);
+  input.end(1);
+  input.end(1); // Lost capture after pointerup must not throw a second grenade.
+  input.begin(2, 'frag', 0, 0);
+  input.end(2, true);
+  input.begin(3, 'frag', 0, 0);
+  input.reset();
+  input.end(3);
+  assert.deepEqual(actions, [
+    ['frag', 'start'], ['frag', 'release'],
+    ['frag', 'start'], ['frag', 'cancel'],
+    ['frag', 'start'], ['frag', 'cancel'],
+  ]);
+  assert.equal(input.getState().frag, false);
+});

@@ -11,6 +11,7 @@ export class TouchInput {
   }
 
   reset() {
+    for (const id of [...this.pointers.keys()]) this.end(id, true);
     this.pointers.clear();
     this.forward = this.strafe = this.stickX = this.stickY = 0;
     this.sprint = this.aim = this.crouch = this.fire = false;
@@ -24,7 +25,8 @@ export class TouchInput {
     if (kind === 'jump') this.jumpQueued = true;
     if (kind === 'aim') this.aim = !this.aim;
     if (kind === 'crouch') this.crouch = !this.crouch;
-    if (kind === 'reload') this.onAction(kind);
+    if (['reload', 'switch', 'melee', 'smoke'].includes(kind)) this.onAction(kind);
+    if (kind === 'frag') this.onAction(kind, 'start');
     return true;
   }
 
@@ -56,6 +58,7 @@ export class TouchInput {
     const p = this.pointers.get(id);
     if (!p) return;
     this.pointers.delete(id);
+    if (p.kind === 'frag') this.onAction('frag', cancelled ? 'cancel' : 'release');
     if (p.kind === 'move') {
       this.forward = this.strafe = this.stickX = this.stickY = 0;
       this.sprint = false;
@@ -83,6 +86,7 @@ export class TouchInput {
       pointers: this.pointers.size, forward: this.forward, strafe: this.strafe,
       sprint: this.sprint && !this.aim && !this.fire && !this.crouch,
       aim: this.aim, crouch: this.crouch, fire: this.fire,
+      frag: [...this.pointers.values()].some(p => p.kind === 'frag'),
     };
   }
 }
