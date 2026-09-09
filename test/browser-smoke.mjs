@@ -154,7 +154,8 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
     assert.equal(an94.state.name, 'AN-94');
     // The nine rifles and the four pistols, in registry order.
     assert.deepEqual(an94.state.availableWeapons,
-      ['m27', 'an94', 'sa58', 'saritch', 'scar', 'sig556', 'tar21', 'type95', 'xm8', 'fiveseven', 'fnp45', 'kard', 'beretta93r']);
+      ['m27', 'an94', 'sa58', 'saritch', 'scar', 'sig556', 'tar21', 'type95', 'xm8', 'dsr50', 'ballista', 'svu', 'as50',
+        'fiveseven', 'fnp45', 'kard', 'beretta93r']);
     assert.equal(an94.ready, true, 'AN-94 viewmodel should be loaded');
     assert.equal(an94.visible, true, 'AN-94 viewmodel should be visible after selection');
     assert.equal(an94.hasIntroFire, true, 'AN-94 should load its hyperburst intro animation');
@@ -221,7 +222,7 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
     assert.equal(classFromTitle.screen, 'class', 'title should expose the create-a-class screen');
     assert.equal(classFromTitle.selectedWeapon, 'm27');
     assert.deepEqual(classFromTitle.cards.map((card) => card.id),
-      ['m27', 'an94', 'sa58', 'saritch', 'scar', 'sig556', 'tar21', 'type95', 'xm8']);
+      ['m27', 'an94', 'sa58', 'saritch', 'scar', 'sig556', 'tar21', 'type95', 'xm8', 'dsr50', 'ballista', 'svu', 'as50']);
     assert.deepEqual(classFromTitle.tabs, ['primary', 'secondary', 'lethal', 'tactical'], 'create-a-class is tabbed like the game');
     assert.equal(classFromTitle.activeClass, 'primary');
     assert.ok(classFromTitle.cards.every((card) => card.ready === 'true'),
@@ -261,6 +262,7 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
 
     const weaponIds = ['m27', 'an94', 'sa58', 'saritch', 'scar', 'sig556', 'tar21', 'type95', 'xm8'];
     const pistolIds = ['fiveseven', 'fnp45', 'kard', 'beretta93r'];
+    const sniperIds = ['dsr50', 'ballista', 'svu', 'as50'];
     const rifleLoads = await page.evaluate(async (ids) => {
       const api = globalThis.hijacked;
       const waitFrames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -345,7 +347,54 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
       `the sig556 should end on the seated magazine alone: ${JSON.stringify(magazines)}`);
     await page.evaluate(() => globalThis.hijacked.debug.selectWeapon('m27'));
 
-    assert.deepEqual((await page.evaluate(() => globalThis.hijacked.debug.getState().weapon.availableWeapons)), [...weaponIds, ...pistolIds]);
+    assert.deepEqual((await page.evaluate(() => globalThis.hijacked.debug.getState().weapon.availableWeapons)), [...weaponIds, ...sniperIds, ...pistolIds]);
+    // Snipers: the world zooms to the file's FOV, the rig leaves the view
+    // behind the overlay, and a bolt-action cannot fire until it rechambers.
+    const sniper = await page.evaluate(async () => {
+      const api = globalThis.hijacked;
+      const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+      const step = async (n) => { for (let i = 0; i < n; i += 1) await frame(); };
+      api.debug.selectWeapon('dsr50');
+      await step(2);
+      const hipFov = api.camera.fov;
+      api.viewmodel.setAiming(true);
+      await step(90);
+      const scoped = api.debug.getState().weapon;
+      const overlayOn = document.getElementById('scope').dataset.on;
+      const rigHidden = !api.viewmodel.root.visible;
+      // Fire through the controller, as the firing checks below do: the tick's
+      // own fire gate is closed while the harness drives the page.
+      api.weapon.setTrigger(true);
+      const fired = api.weapon.update(1 / 120);
+      api.weapon.setTrigger(false);
+      let rechambered = false;
+      for (let i = 0; i < 90 && !rechambered; i += 1) {
+        await frame();
+        rechambered = api.viewmodel.rechambering;
+      }
+      const blockedWhileRechambering = rechambered && api.weapon.update(1 / 120, { canFire: !api.viewmodel.rechambering }) === 0;
+      await step(60);
+      const afterShot = api.debug.getState().weapon;
+      api.viewmodel.setAiming(false);
+      await step(90);
+      const lowered = api.debug.getState().weapon;
+      api.debug.selectWeapon('m27');
+      await step(2);
+      return { hipFov, scoped, overlayOn, rigHidden, fired, rechambered, blockedWhileRechambering, afterShot, lowered, overlayOff: document.getElementById('scope').dataset.on };
+    });
+    assert.equal(sniper.hipFov, 75);
+    assert.equal(sniper.scoped.scoped, true, `the DSR 50 should be scoped after its raise: ${JSON.stringify(sniper.scoped)}`);
+    assert.equal(sniper.scoped.fov, 15, 'the world zooms to the weapon file adsZoomFov');
+    assert.equal(sniper.overlayOn, 'true');
+    assert.equal(sniper.rigHidden, true, 'the rig leaves the view behind the glass');
+    assert.equal(sniper.fired, 1);
+    assert.equal(sniper.afterShot.magazine, 4);
+    assert.equal(sniper.rechambered, true, 'the DSR 50 works its bolt after the shot');
+    assert.equal(sniper.blockedWhileRechambering, true, 'nothing fires until the bolt is home');
+    assert.equal(sniper.afterShot.rechambering, false, 'the bolt is home again a second later');
+    assert.equal(sniper.lowered.scoped, false);
+    assert.equal(sniper.lowered.fov, 75);
+    assert.equal(sniper.overlayOff, 'false');
     // The secondaries: each pistol loads its own rig, whips with its own melee
     // clip, and the wheel walks between the class's two guns.
     const pistolLoads = await page.evaluate(async (ids) => {
@@ -485,7 +534,7 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
     assert.equal(enemySetup.count, 6, 'six enemies should spawn');
     assert.equal(enemySetup.alive, 6, 'all enemies should start alive');
     assert.equal(enemySetup.crowdAgents, 6, 'each enemy should own a crowd agent');
-    assert.equal(enemySetup.hitboxes, 18, 'each enemy should expose three hitboxes');
+    assert.equal(enemySetup.hitboxes, 24, 'each enemy should expose four hitboxes: chest, head, legs, lower torso');
     assert.equal(enemySetup.navProjected, true, 'enemy spawns should lie on the navmesh');
     assert.deepEqual(enemySetup.models, Array(6).fill(true), 'enemy body and weapon assets should load');
     assert.ok(enemySetup.groundedRoots.every((z) => Math.abs(z - 37.23) < 0.1),
@@ -749,7 +798,7 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
       { hitActor: 'bot-1', shots: ffaCombat.expectedShots, shooterKills: 1, victimDeaths: 1 },
       `bots should damage, kill, and score against other bots in free-for-all (${ffaCombat.weapon})`,
     );
-    assert.ok(ffaCombat.shots >= 3 && ffaCombat.shots <= 5, `a bot rifle should need three to five rounds up close: ${JSON.stringify(ffaCombat)}`);
+    assert.ok(ffaCombat.shots >= 2 && ffaCombat.shots <= 5, `a bot rifle should need two (a sniper) to five rounds up close: ${JSON.stringify(ffaCombat)}`);
 
     const combatFeedback = await page.evaluate(() => {
       const api = globalThis.hijacked;
@@ -851,8 +900,9 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
     // its own recorded report under `shot:<id>`.
     assert.deepEqual(audio.layers,
       ['exteriorDecay', 'interiorDecay', 'lfe', 'pistolExteriorDecay', 'pistolInteriorDecay', 'shot', 'shot:an94',
-        'shot:beretta93r', 'shot:fiveseven', 'shot:fnp45', 'shot:hk416', 'shot:kard', 'shot:m27',
-        'shot:sa58', 'shot:saritch', 'shot:scar', 'shot:sig556', 'shot:tar21', 'shot:type95', 'shot:xm8']);
+        'shot:as50', 'shot:ballista', 'shot:beretta93r', 'shot:dsr50', 'shot:fiveseven', 'shot:fnp45', 'shot:hk416',
+        'shot:kard', 'shot:m27', 'shot:sa58', 'shot:saritch', 'shot:scar', 'shot:sig556', 'shot:svu', 'shot:tar21',
+        'shot:type95', 'shot:xm8', 'sniperExteriorDecay', 'sniperInteriorDecay', 'sniperLfe']);
     assert.ok(audio.durations.shot > 1.1 && audio.durations.shot < 1.2);
     assert.equal(audio.durations['shot:m27'], audio.durations.shot,
       'the shared report is the M27 sample the export shipped');

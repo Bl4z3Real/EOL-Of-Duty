@@ -53,6 +53,15 @@ VIEW_MODELS = (
     "t6_wpn_knife_base_view_lod0",
     "t6_wpn_grenade_frag_projectile_lod0",
     "t6_wpn_grenade_smoke_projectile_lod0",
+    # Sniper rifles and their magazines (attachViewModel7 in the weapon files).
+    "t6_wpn_sniper_dsr50_view_lod0",
+    "t6_wpn_sniper_ballista_view_lod0",
+    "t6_wpn_sniper_svu_view_lod0",
+    "t6_wpn_sniper_xpr50_view_lod0",
+    "t6_attach_mag_dsr50_view_lod0",
+    "t6_attach_mag_ballista_view_lod0",
+    "t6_attach_mag_svu_view_lod0",
+    "t6_attach_mag_xpr50_view_lod0",
 )
 
 # Third-person rigs the bots carry. LOD1 keeps every mount tag at a fraction of
@@ -60,6 +69,8 @@ VIEW_MODELS = (
 WORLD_MODELS = tuple(
     f"t6_wpn_ar_{name}_world_lod1"
     for name in ("an94", "hk416", "sa58", "saritch", "scarh", "sig556", "type95", "x95l", "xm8")
+) + tuple(
+    f"t6_wpn_sniper_{name}_world_lod1" for name in ("dsr50", "ballista", "svu", "xpr50")
 ) + (
     "t6_wpn_grenade_frag_projectile_lod1",
     "t6_wpn_grenade_smoke_projectile_lod1",
@@ -78,7 +89,26 @@ ANIMS = tuple(
     # frag_grenade_mp / willy_pete_mp both throw with the M67 clips.
     "viewmodel_m67_pullpin",
     "viewmodel_m67_throw",
+) + tuple(
+    # The bolt-actions rechamber after every shot, from the hip and in the scope.
+    f"viewmodel_{rig}_{clip}"
+    for rig in ("dsr50", "ballista")
+    for clip in ("idle", "fire", "ads_fire", "reload", "reload_empty", "rechamber", "ads_rechamber", "ads_up", "ads_down")
+) + tuple(
+    # The semi-automatics share one fire clip for hip and scope.
+    f"viewmodel_{rig}_{clip}"
+    for rig in ("svu_as", "xpr50")
+    for clip in ("idle", "fire", "reload", "reload_empty", "ads_up", "ads_down")
 )
+
+# Scope overlays: the full-screen lens image a sniper shows in ADS, keyed by the
+# weapon file's adsOverlayShader. Written as PNG so the transparent lens keeps
+# its alpha; they land in export/web/ui/scope/.
+SCOPE_OVERLAYS = ("scope_overlay_dsr50", "scope_overlay_ballista", "scope_overlay_svu", "scope_overlay_xpr50")
+
+# Create-a-class card art, by the menu image name; the runtime id it serves.
+CARD_ART = (("menu_mp_weapons_dsr1_big", "dsr50"), ("menu_mp_weapons_ballista_big", "ballista"),
+            ("menu_mp_weapons_svu_big", "svu"), ("menu_mp_weapons_as50_big", "as50"))
 
 # The game's weapon camos, by the name in the camo table. The web catalog in
 # skins.js keys them by this id; a camo added here also needs a row there.
@@ -183,10 +213,41 @@ def import_camos(names, images_dir: Path, target: Path, *, dry_run: bool, report
         report.append(f"camo   {out.relative_to(ROOT)}")
 
 
+def import_overlays(names, images_dirs, target: Path, *, dry_run: bool, report: list[str]) -> None:
+    for name in names:
+        source = next((d / f"{name}_1024.dds" for d in images_dirs if (d / f"{name}_1024.dds").exists()), None)
+        if not source:
+            report.append(f"missing overlay {name}_1024.dds")
+            continue
+        out = target / f"{name}.png"
+        if out.exists():
+            continue
+        if not dry_run:
+            target.mkdir(parents=True, exist_ok=True)
+            load_dds(source).convert("RGBA").save(out, optimize=True)
+        report.append(f"scope  {out.relative_to(ROOT)}")
+
+
+def import_card_art(entries, images_dirs, target: Path, *, dry_run: bool, report: list[str]) -> None:
+    for image, weapon_id in entries:
+        source = next((d / f"{image}.dds" for d in images_dirs if (d / f"{image}.dds").exists()), None)
+        if not source:
+            report.append(f"missing card art {image}.dds")
+            continue
+        out = target / f"menu_mp_weapons_{weapon_id}_big.png"
+        if out.exists():
+            continue
+        if not dry_run:
+            load_dds(source).convert("RGBA").save(out, optimize=True)
+        report.append(f"card   {out.relative_to(ROOT)}")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--dump", required=True, help="Unlinker output folder holding model_export/ and xanim/")
     parser.add_argument("--images", help="folder of dumped .dds images (default: <dump>/images)")
+    parser.add_argument("--extra-images", nargs="*", default=[],
+                        help="more image folders to search (menu art lives in the ui and code zones)")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--force", action="store_true", help="overwrite models that are already in the export")
     args = parser.parse_args()
@@ -203,6 +264,9 @@ def main() -> int:
                   dry_run=args.dry_run, force=args.force, report=report)
     import_anims(ANIMS, xanim_dir, WEB / "viewmodel" / "anims", dry_run=args.dry_run, report=report)
     import_camos(CAMOS, images_dir, WEB / "images" / "camo", dry_run=args.dry_run, report=report)
+    image_dirs = [images_dir, *(Path(d).resolve() for d in args.extra_images)]
+    import_overlays(SCOPE_OVERLAYS, image_dirs, WEB / "ui" / "scope", dry_run=args.dry_run, report=report)
+    import_card_art(CARD_ART, image_dirs, WEB / "ui", dry_run=args.dry_run, report=report)
 
     for line in report:
         print(line)

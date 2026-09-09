@@ -58,6 +58,10 @@ const SPRINT_BOB = Object.freeze({
 });
 
 const BOB_GROUND_GRACE = 0.25;
+// Where along the ADS raise a scope takes over, and where along the lower it
+// lets go; see weapons.js SCOPE.
+const SCOPE_IN_FRAC = 0.985;
+const SCOPE_OUT_FRAC = 0.95;
 // Where a grenade sits in the right palm, in the wrist joint's frame (inches).
 const GRENADE_PALM_OFFSET = Object.freeze([3.2, -0.6, 1.4]);
 // The M67 body's material carries no colour map in the export; this is the
@@ -150,6 +154,17 @@ export class Viewmodel {
     adsTransInTime = 0.25,
     adsTransOutTime = 0.25,
     camo = DEFAULT_WEAPON_CAMO,
+    // A sniper's scope: { zoomFov, overlay, idleAmount, ... } from weapons.js.
+    // With one set, the rig leaves the view at the top of the raise and the
+    // page draws the overlay; `scoped` says when.
+    scope = null,
+    // Bolt-actions play their rechamber clip after every shot and cannot
+    // fire until it ends.
+    boltAction = false,
+    // tag_torso position the weapon's clips assume, engine axes, when it is
+    // not the viewhands' bind. Applied before any clip binds so it is what
+    // the mixer restores to.
+    torsoBind = null,
   } = {}) {
     this.baseFov = fov;
     // Raise and lower on the weapon file's adsTransInTime / adsTransOutTime.
@@ -244,6 +259,15 @@ export class Viewmodel {
     this.throwPhase = null;
     this.onThrowRelease = null;
     this.onMeleeStrike = null;
+    this.scope = scope;
+    this.boltAction = Boolean(boltAction);
+    this.torsoBind = Array.isArray(torsoBind) && torsoBind.length === 3 ? torsoBind : null;
+    this.scoped = false;
+    this.onScopeChange = null;
+    this.rechamberAction = null;
+    this.adsRechamberAction = null;
+    this.rechambering = false;
+    this.pendingRechamber = false;
   }
 
   get availableCamos() {
@@ -370,6 +394,12 @@ export class Viewmodel {
     tagWeapon.add(weapon.scene);
     this.weaponRoot = weapon.scene;
 
+    // A rig whose clips assume another torso pose gets it here, before the
+    // view anchor and before any clip binds the joint.
+    if (this.torsoBind) {
+      const torso = findNode(hands.scene, 'tag_torso');
+      if (torso) torso.position.fromArray(this.torsoBind);
+    }
     // Anchor tag_view at the camera origin so the authored hip pose shows.
     this.root.updateMatrixWorld(true);
     this.root.matrix.multiplyMatrices(VIEW_TO_CAMERA, tagView.matrixWorld.clone().invert());
@@ -700,6 +730,16 @@ export class Viewmodel {
       this.introAdsFireAction = this.mixer.clipAction(this.clips.get('introAdsFire'));
       this.introAdsFireAction.setLoop(THREE.LoopOnce, 1);
     }
+    if (this.clips.has('rechamber') && this.idleAction) {
+      this.rechamberAction = this.mixer.clipAction(this.clips.get('rechamber'));
+      this.rechamberAction.setLoop(THREE.LoopOnce, 1);
+      this.rechamberAction.clampWhenFinished = true;
+    }
+    if (this.clips.has('adsRechamber') && this.idleAction) {
+      this.adsRechamberAction = this.mixer.clipAction(this.clips.get('adsRechamber'));
+      this.adsRechamberAction.setLoop(THREE.LoopOnce, 1);
+      this.adsRechamberAction.clampWhenFinished = true;
+    }
     if (this.clips.has('melee') && this.idleAction) {
       this.meleeAction = this.mixer.clipAction(this.clips.get('melee'));
       this.meleeAction.setLoop(THREE.LoopOnce, 1);
@@ -770,7 +810,7 @@ export class Viewmodel {
    * the lockout, meleeTime. The knife shows for rifle swings only.
    */
   melee({ strikeDelay = 0.125, duration = 0.8, knife = true } = {}) {
-    if (!this.ready || this.reloading || this.meleeing || this.throwing || !this.meleeAction) return false;
+    if (!this.ready || this.reloading || this.meleeing || this.throwing || this.rechambering || this.pendingRechamber || !this.meleeAction) return false;
     this.meleeing = true;
     this.meleeTimer = duration;
     this.meleeStrikeAt = strikeDelay;
@@ -788,7 +828,7 @@ export class Viewmodel {
    * and the pin comes out. The fuse starts now when the grenade cooks.
    */
   beginThrow(kind) {
-    if (!this.ready || this.reloading || this.meleeing || this.throwing || !this.throwAction) return false;
+    if (!this.ready || this.reloading || this.meleeing || this.throwing || this.rechambering || this.pendingRechamber || !this.throwAction) return false;
     this.throwing = true;
     this.throwPhase = 'pin';
     this.throwKind = kind;
@@ -827,7 +867,30 @@ export class Viewmodel {
     this.idleAction?.reset().fadeIn(0.12).play();
   }
 
+  /**
+   * Work the bolt. Plays the scoped or hip rechamber clip and blocks firing
+   * and reloading until it ends. Returns false when nothing is loaded.
+   */
+  rechamber() {
+    const action = this.aimBlend > 0.5 && this.adsRechamberAction ? this.adsRechamberAction : this.rechamberAction;
+    if (!this.ready || !action || this.rechambering || this.reloading) return false;
+    this.rechambering = true;
+    this.pendingRechamber = false;
+    for (const other of [this.fireAction, this.adsFireAction]) other?.stop();
+    action.reset().fadeIn(0.03).play();
+    this.idleAction?.fadeOut(0.03);
+    this.startNotetracks(action === this.adsRechamberAction ? 'adsRechamber' : 'rechamber', action);
+    return true;
+  }
+
   onClipFinished(event) {
+    if (event.action === this.rechamberAction || event.action === this.adsRechamberAction) {
+      this.rechambering = false;
+      this.stopNotetracks();
+      this.idleAction.reset().fadeIn(0.08).play();
+      event.action.fadeOut(0.08);
+      return;
+    }
     if (event.action === this.meleeAction) {
       this.meleeing = false;
       if (this.knifeRoot) this.knifeRoot.visible = false;
@@ -859,6 +922,8 @@ export class Viewmodel {
     if ([this.fireAction, this.adsFireAction, this.introFireAction, this.introAdsFireAction]
       .includes(event.action)) {
       event.action.stop();
+      // A bolt-action works the bolt as soon as the shot's own clip is done.
+      if (this.pendingRechamber && !this.reloading && this.rechamber()) return;
       if (!this.reloading) this.idleAction.reset().fadeIn(0.06).play();
     }
   }
@@ -866,6 +931,11 @@ export class Viewmodel {
   reload(empty = false) {
     const action = empty && this.reloadEmptyAction ? this.reloadEmptyAction : this.reloadAction;
     if (!this.ready || !action || this.reloading || this.meleeing || this.throwing) return false;
+    // A reload cuts a rechamber short; the fresh magazine chambers a round.
+    this.rechamberAction?.stop();
+    this.adsRechamberAction?.stop();
+    this.rechambering = false;
+    this.pendingRechamber = false;
     this.reloading = true;
     this.fireAction?.stop();
     this.adsFireAction?.stop();
@@ -940,7 +1010,8 @@ export class Viewmodel {
   }
 
   fire({ intro = false } = {}) {
-    if (!this.ready || this.reloading || this.meleeing || this.throwing) return false;
+    if (!this.ready || this.reloading || this.meleeing || this.throwing || this.rechambering) return false;
+    if (this.boltAction) this.pendingRechamber = true;
     const aiming = this.aimBlend > 0.5;
     const action = intro
       ? (aiming && this.introAdsFireAction ? this.introAdsFireAction : this.introFireAction)
@@ -969,6 +1040,33 @@ export class Viewmodel {
 
   setAiming(aiming) {
     this.aiming = Boolean(aiming);
+  }
+
+  resetAiming() {
+    this.setAiming(false);
+    this.adsTransition.reset();
+    this.aimBlend = 0;
+    if (this.scoped) this.onScopeChange?.(false);
+    this.scoped = false;
+    if (this.root) this.root.visible = true;
+  }
+
+  // A new life cannot inherit a delayed strike, throw or bolt animation.
+  resetActions({ preserveChamber = false } = {}) {
+    const needsChamber = preserveChamber && (this.rechambering || this.pendingRechamber);
+    this.mixer?.stopAllAction();
+    this.stopNotetracks();
+    this.reloading = this.meleeing = this.throwing = false;
+    this.rechambering = false;
+    this.pendingRechamber = needsChamber;
+    this.throwPhase = null;
+    this.meleeStruck = this.throwReleased = true;
+    this.showSpareMagazine(false);
+    if (this.knifeRoot) this.knifeRoot.visible = false;
+    if (this.weaponRoot) this.weaponRoot.visible = true;
+    for (const body of this.grenadeModels.values()) body.visible = false;
+    this.resetAiming();
+    this.idleAction?.reset().play();
   }
 
   addLook(dx, dy) {
@@ -1052,6 +1150,17 @@ export class Viewmodel {
     );
     // Reloading, a melee or a throw cancels the sight picture, as in the game.
     this.aimBlend = this.adsTransition.update(dt, this.aiming && !this.reloading && !this.meleeing && !this.throwing);
+    if (this.scope) {
+      // The glass takes over at the top of the raise and lets go at the first
+      // touch of the lower (adsZoomInFrac 0 / adsZoomOutFrac 0.05); the rig is
+      // hidden while scoped so the page's overlay is the whole picture.
+      const scoped = this.scoped ? this.aimBlend > SCOPE_OUT_FRAC : this.aimBlend >= SCOPE_IN_FRAC;
+      if (scoped !== this.scoped) {
+        this.scoped = scoped;
+        this.root.visible = !scoped;
+        this.onScopeChange?.(scoped);
+      }
+    }
     const sprint = this.sprintBlend;
 
     this.bobAmp = damp(this.bobAmp, movingGrounded ? speedFactor : 0, 8, dt);

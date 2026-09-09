@@ -1,4 +1,4 @@
-#touch-controls[hidden], .touch-only { display: none; }
+#touch-controls button[hidden], #touch-controls[hidden], .touch-only { display: none; }
 body.touch-mode .touch-only { display: block; }
 body.touch-mode .touch-only[hidden] { display: none; }
 body.touch-mode { overscroll-behavior: none; -webkit-user-select: none; user-select: none; }
@@ -46,6 +46,7 @@ body.touch-mode canvas { touch-action: none; }
 .touch-fire { width: 82px; height: 82px; right: calc(var(--touch-right) + 69px); bottom: calc(var(--touch-bottom) + 76px); border: 2px solid #effff6a6; background: #0b202b66; }
 .touch-fire svg { width: 31px; height: 31px; }
 .touch-aim { right: calc(var(--touch-right) + 167px); bottom: calc(var(--touch-bottom) + 62px); }
+.touch-breath { width: 48px; height: 48px; right: calc(var(--touch-right) + 167px); bottom: calc(var(--touch-bottom) + 140px); }
 .touch-jump { right: var(--touch-right); bottom: calc(var(--touch-bottom) + 92px); }
 .touch-crouch { right: calc(var(--touch-right) + 14px); bottom: calc(var(--touch-bottom) + 20px); }
 .touch-reload { right: calc(var(--touch-right) + 94px); bottom: var(--touch-bottom); }
@@ -117,6 +118,7 @@ body.touch-mode #scoreboard .touch-only[hidden] { display: none; }
   .touch-move { height: 38%; width: 42%; }
   .touch-aim { right: calc(var(--touch-right) + 130px); bottom: calc(var(--touch-bottom) + 152px); }
   .touch-fire { right: calc(var(--touch-right) + 43px); bottom: calc(var(--touch-bottom) + 88px); width: 76px; height: 76px; }
+  .touch-breath { right: calc(var(--touch-right) + 130px); bottom: calc(var(--touch-bottom) + 218px); }
   .touch-jump { bottom: calc(var(--touch-bottom) + 185px); }
   .touch-crouch { right: var(--touch-right); bottom: calc(var(--touch-bottom) + 18px); }
   .touch-reload { right: calc(var(--touch-right) + 74px); }
@@ -124,4 +126,13 @@ body.touch-mode #scoreboard .touch-only[hidden] { display: none; }
   .touch-hint { right: 14px; bottom: calc(var(--touch-bottom) + 253px); }
   body.touch-mode #match-status { top: max(128px, calc(env(safe-area-inset-top) + 118px)); max-width: 90%; }
   body.touch-mode #killfeed { top: 165px; }
+}
+
+/* Keep the scope glass free of HUD fragments and instructional text. */
+body.scoped #hud-minimap, body.scoped #hud-ammo, body.scoped #killfeed,
+body.scoped #match-status, body.scoped #medals, body.scoped #hud-equipment,
+body.scoped .touch-hint { visibility: hidden; }
+@media (orientation: portrait) {
+  body.scoped .touch-equipment { top: max(72px, calc(env(safe-area-inset-top) + 62px)); bottom: auto; }
+  body.scoped .touch-breath { top: max(128px, calc(env(safe-area-inset-top) + 118px)); bottom: auto; right: var(--touch-right); }
 }

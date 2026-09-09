@@ -82,7 +82,7 @@ test('cancellation discards pending actions and reset clears every owned input',
   input.begin(4, 'crouch', 0, 0);
   input.reset();
   input.move(1, 500, 500); // Stale events after rotation or pause have no effect.
-  assert.deepEqual(input.read(), { forward: 0, strafe: 0, sprint: false, crouch: false, aim: false, fire: false, jump: false });
+  assert.deepEqual(input.read(), { forward: 0, strafe: 0, sprint: false, crouch: false, aim: false, fire: false, jump: false, breath: false });
   assert.equal(input.getState().pointers, 0);
 });
 
@@ -131,4 +131,18 @@ test('frag release throws once; cancellation and reset cancel without throwing',
     ['frag', 'start'], ['frag', 'cancel'],
   ]);
   assert.equal(input.getState().frag, false);
+});
+
+
+test('holding breath survives other contacts and clears on release or interruption', () => {
+  const input = new TouchInput();
+  input.begin(1, 'breath', 0, 0);
+  input.begin(2, 'fire', 0, 0);
+  input.end(2);
+  assert.equal(input.read().breath, true);
+  input.end(1);
+  assert.equal(input.read().breath, false);
+  input.begin(1, 'breath', 0, 0);
+  input.reset();
+  assert.equal(input.getState().breath, false);
 });

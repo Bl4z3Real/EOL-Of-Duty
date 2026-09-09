@@ -53,6 +53,7 @@ Controls:
 - `Left mouse`: fire; `R`: reload
 - `Right mouse`: aim down sights
 - `Mouse wheel`, `1`, `2`: switch between the class's primary and secondary
+- `Shift` while scoped: hold breath
 - `E`: melee (the knife with a rifle, a pistol-whip with a pistol)
 - `G`: frag grenade, held to cook; `Q`: smoke grenade
 - `K`: cycle the weapon camo (a random one is dealt each page load)
@@ -229,7 +230,8 @@ OSW, SMR, SCAR-H, SWAT-556, MTAR, Type 25, M8A1) and four pistols (Five-seven,
 Tac-45, KAP-40, B23R), each with its magazine, cadence, fire type (automatic,
 semi-automatic or burst), damage, model, world model and clip names taken from
 the T6 weapon file. Create-a-class is tabbed like the game's: Primary,
-Secondary, Lethal and Tactical, one pick each. The mouse wheel and `1`/`2`
+Secondary, Lethal and Tactical, one pick each, with the four sniper rifles
+(see "Sniper rifles and the scope") in the primary tab. The mouse wheel and `1`/`2`
 move between the two guns; a life starts on the primary. Pistol magazines are
 part of the gun model, so they load no separate attachment and reload on the
 gun's own `tag_clip`.
@@ -345,6 +347,33 @@ gravity. The game's burst masks themselves are white alpha textures meant for
 additive FX and are nearly invisible tinted, which is why they are not the
 burst here. The debug state exposes `weapon.spreadDegrees`,
 `weapon.sprinting` and `weapon.sprintOutBlocked`.
+
+### Sniper rifles and the scope
+
+Four snipers sit in the primary slot after the assault rifles: DSR 50 and
+Ballista (bolt-action) and SVU-AS and XPR-50 (semi-automatic). The scope is
+built the way the game builds it. Every weapon file carries three ADS zoom
+slots (`adsZoomFov1/2/3`); on a base weapon they are equal, 15 degrees for
+three of these and 20 for the SVU, so a gun has one zoom level and the
+Variable Zoom attachment is what gives it several. The world camera zooms
+toward that FOV as the sight comes up; at the top of the raise
+(`adsZoomInFrac` 0) the rig leaves the view and the game's own overlay
+image for that scope (`ui/scope/scope_overlay_<gun>.png`, from
+`adsOverlayShader`) stands in for the glass, with a crosshair reticle; at
+the first touch of the lower (`adsZoomOutFrac` 0.05) it goes again. Mouse
+sensitivity scales with the zoom. In the glass the view sways on a slow
+figure of eight sized by the file's `adsIdleAmount` (26 to 60); holding
+`Shift` (or hold **STEADY** on touch) steadies it for five seconds, then it returns while the lungs
+recover. The bolt-actions play their `rechamberAnim` (the scoped one while
+aimed) after every shot and cannot fire until it ends. Reloading interrupts the bolt cycle. Damage is
+the file's: 95 to 98 flat to 3000 or 4000 units with head 2x and upper
+torso 1.5x, so a chest hit kills. The bots carry a chest box and a lower
+torso box because the files score them apart (the DSR 50's lower torso is
+1.5x, the XPR-50's is 1x). Bots draw snipers with the rest of the roster.
+The XPR-50's clips were authored against a hands rig whose torso sits 13
+units ahead of the FBI viewhands' bind, so its entry carries a `torsoBind`
+that the viewmodel applies before the clips play; without it the receiver
+sits in the camera.
 
 ### Fire modes, melee and grenades
 
@@ -731,6 +760,7 @@ npm run ai:test
 npm run ai:enemy
 npm run ai:life
 npm run ai:mobile
+npm run ai:sniper
 npm run ai:graphics
 npm run ai:graphics -- fallback
 npm run ai:record -- 10
@@ -745,6 +775,10 @@ Outputs are written to `artifacts/ai-game/`:
 - `trace.zip`: a Playwright trace with screenshots and DOM snapshots
 - `recording.webm`: video produced by `ai:record`
 - `report.json`: machine-readable checks and pass/fail status
+
+`debug.setEnemiesActive(false)` pauses bots and their navigation for input/animation probes while the player keeps running; restore it with `true`. `getState().enemiesActive` reports the setting. Combat remains covered by `ai:enemy`.
+
+`ai:sniper` checks all four rifles with real aim, fire and hold-breath input, including scope/bolt transitions and pause/respawn recovery. Set `AI_GAME_MOBILE=1` to exercise touch input and the portrait scope masks.
 
 `ai:mobile` writes to `artifacts/ai-mobile/`. It tests simultaneous touch
 contacts, action buttons, interruption recovery, class selection, and match

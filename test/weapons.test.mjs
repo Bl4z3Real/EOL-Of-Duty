@@ -4,7 +4,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 
 import {
-  WEAPONS, WEAPON_IDS, WEAPON_CLASSES, WEAPON_CLASS_IDS, EQUIPMENT, MELEE, THROW_CLIPS, DEFAULT_LOADOUT,
+  WEAPONS, WEAPON_IDS, WEAPON_CLASSES, WEAPON_CLASS_IDS, EQUIPMENT, MELEE, THROW_CLIPS, DEFAULT_LOADOUT, SCOPE,
   weaponsOfClass, equipmentOfClass, findWeapon, weaponCue, randomLoadout, nextHeldWeapon,
 } from '../export/web/weapons.js';
 import { WEAPON_BALLISTICS } from '../export/web/weapon-ballistics.js';
@@ -12,8 +12,9 @@ import { WEAPON_BALLISTICS } from '../export/web/weapon-ballistics.js';
 const web = path.join(import.meta.dirname, '..', 'export', 'web');
 const shipped = (url) => fs.existsSync(path.join(web, url));
 
-test('the registry carries nine rifles and four pistols with the game stats', () => {
-  assert.equal(weaponsOfClass('primary').length, 9);
+test('the registry carries nine rifles, four snipers and four pistols with the game stats', () => {
+  assert.equal(weaponsOfClass('primary').length, 13);
+  assert.deepEqual(weaponsOfClass('primary').filter((w) => w.role === 'Sniper rifle').map((w) => w.id), ['dsr50', 'ballista', 'svu', 'as50']);
   assert.deepEqual(weaponsOfClass('secondary').map((w) => w.id), ['fiveseven', 'fnp45', 'kard', 'beretta93r']);
   assert.deepEqual(WEAPON_CLASS_IDS, ['primary', 'secondary', 'lethal', 'tactical']);
   // Five-seven: fiveseven_mp verbatim, two spare magazines as the game deals.
@@ -103,4 +104,28 @@ test('random bot loadouts draw a rifle and a pistol and keep both grenades', () 
     seen.add(loadout.primary);
   }
   assert.ok(seen.size > 3, 'loadouts vary across bots');
+});
+
+test('snipers carry the file scope, bolt-actions rechamber, and their shots one-hit the chest', () => {
+  for (const id of ['dsr50', 'ballista', 'svu', 'as50']) {
+    const sniper = WEAPONS[id];
+    assert.equal(sniper.class, 'primary');
+    assert.equal(sniper.fireMode, 'single');
+    assert.ok(sniper.scope, `${id} has no scope`);
+    assert.equal(sniper.scope.zoomLevels.length, 3, 'three zoom slots, as the weapon file');
+    assert.ok(shipped(sniper.scope.overlay), `${id} overlay missing`);
+    assert.ok(shipped(sniper.worldModelUrl), `${id} world model missing`);
+    assert.equal(sniper.reserveAmmo, sniper.magazineSize * 2, 'two spare magazines');
+    // The scope's damage: 95-98 flat with head 2x and upper torso 1.5x.
+    assert.ok(WEAPON_BALLISTICS[id].locations.head >= 1.5);
+  }
+  assert.equal(WEAPONS.dsr50.scope.zoomFov, 15);
+  assert.equal(WEAPONS.svu.scope.zoomFov, 20);
+  assert.equal(WEAPONS.dsr50.boltAction, true);
+  assert.ok(WEAPONS.dsr50.clips.rechamber && WEAPONS.dsr50.clips.adsRechamber);
+  assert.equal(WEAPONS.svu.boltAction, false);
+  assert.equal(WEAPONS.as50.boltAction, false);
+  assert.equal(WEAPON_BALLISTICS.dsr50.damage, 98);
+  assert.equal(WEAPON_BALLISTICS.dsr50.locations.torso, 1.5, 'a chest hit kills outright');
+  assert.ok(SCOPE.overlayInFrac > SCOPE.overlayOutFrac, 'the glass lands late on the raise and leaves early on the lower');
 });

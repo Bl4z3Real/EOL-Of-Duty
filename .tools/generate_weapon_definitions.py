@@ -35,8 +35,14 @@ WEAPON_DIR = ROOT / "artifacts" / "weapon-data" / "weapons"
 # shell-by-shell manual reload loop.
 ROSTER = ("hk416", "an94", "sa58", "saritch", "scar", "sig556", "tar21", "type95", "xm8")
 PISTOLS = ("fiveseven", "fnp45", "kard", "beretta93r")
-ALL_IDS = ROSTER + PISTOLS
+# Sniper rifles share the primary slot with the assault rifles, after them.
+SNIPERS = ("dsr50", "ballista", "svu", "as50")
+ALL_IDS = ROSTER + PISTOLS + SNIPERS
 DISPLAY_NAMES = {
+    "dsr50": "DSR 50",
+    "ballista": "Ballista",
+    "svu": "SVU-AS",
+    "as50": "XPR-50",
     "fiveseven": "Five-seven",
     "fnp45": "Tac-45",
     "kard": "KAP-40",
@@ -54,6 +60,9 @@ DISPLAY_NAMES = {
 # The existing slot uses the player-facing M27 id.  Keep the source weapon id
 # in the input lookup, but emit the runtime id already used by the game.
 RUNTIME_IDS = {"hk416": "m27"}
+# tag_torso position (engine axes, inches) a weapon's clips assume when it is
+# not the viewhands' bind of (-4.63, 0, -1.38). Only the XPR-50 differs.
+TORSO_BINDS = {"as50": (8.68, -3.97, -4.64)}
 
 CLIPS = (
     ("idle", "idleAnim"),
@@ -65,6 +74,9 @@ CLIPS = (
     ("reloadEmpty", "reloadEmptyAnim"),
     # Pistols carry their own pistol-whip; rifles melee with knife_mp's clips.
     ("melee", "meleeAnim"),
+    # Bolt-actions work the bolt after every shot, from the hip or in the scope.
+    ("rechamber", "rechamberAnim"),
+    ("adsRechamber", "adsRechamberAnim"),
 )
 
 
@@ -121,6 +133,7 @@ def emit_definition(source_id: str, slot: int) -> str:
     magazine = find_magazine(weapon)
     clip_values = clip_entries(weapon)
     pistol = source_id in PISTOLS
+    sniper = source_id in SNIPERS
 
     fire_time = float(weapon["fireTime"])
     rpm = int(round(60 / fire_time))
@@ -133,7 +146,7 @@ def emit_definition(source_id: str, slot: int) -> str:
         f"    id: {js_string(runtime_id)},",
         f"    name: {js_string(DISPLAY_NAMES[source_id])},",
         f"    class: {js_string('secondary' if pistol else 'primary')},",
-        f"    role: {js_string('Pistol' if pistol else 'Assault rifle')},",
+        f"    role: {js_string('Pistol' if pistol else 'Sniper rifle' if sniper else 'Assault rifle')},",
         f"    slot: {slot},",
         f"    sourceId: {js_string(source_id)},",
         f"    magazineSize: {clip_size},",
@@ -148,6 +161,21 @@ def emit_definition(source_id: str, slot: int) -> str:
     ]
     if fire_mode == "burst":
         lines.append(f"    burstCount: {number(weapon.get('burstCount', '3'), integer=True)},")
+    if sniper:
+        # The scope: the file's zoom FOV (three slots, all equal without the
+        # Variable Zoom attachment), its overlay image, the sway in the glass,
+        # and whether the action has to be worked between shots.
+        overlay = weapon.get("adsOverlayShader", "")
+        lines.extend([
+            "    scope: Object.freeze({",
+            f"      zoomFov: {number(weapon.get('adsZoomFov1', '15'))},",
+            "      zoomLevels: Object.freeze([" + ", ".join(number(weapon.get(f'adsZoomFov{i}', '15')) for i in (1, 2, 3)) + "]),",
+            f"      overlay: {js_string(f'ui/scope/{overlay}.png') if overlay else 'null'},",
+            f"      idleAmount: {number(weapon.get('adsIdleAmount', '30'))},",
+            f"      swayMaxAngle: {number(weapon.get('adsSwayMaxAngle', '2'))},",
+            "    }),",
+            f"    boltAction: {'true' if weapon.get('rechamberAnim') else 'false'},",
+        ])
     if magazine:
         attachment_index, magazine_model = magazine
         offset = [
@@ -173,6 +201,11 @@ def emit_definition(source_id: str, slot: int) -> str:
             "    initialShotCount: 2,",
         ])
 
+    # A rig whose clips were authored against a different torso bind (the
+    # XPR-50's sit 13 units further forward than the FBI hands) says so here;
+    # the value is the first tag_torso key of its ads_up clip.
+    if source_id in TORSO_BINDS:
+        lines.append(f"    torsoBind: Object.freeze([{', '.join(number(str(v)) for v in TORSO_BINDS[source_id])}]),")
     lines.append("    // Agent A ADS sight-anchor override can be added here when a rig needs one.")
     lines.append("    clips: Object.freeze({")
     for key, name in clip_values:
@@ -183,10 +216,12 @@ def emit_definition(source_id: str, slot: int) -> str:
 
 # Hitbox regions the browser resolves, mapped onto the weapon file's
 # locational multipliers. The bots have head, torso and leg boxes only.
+# The bots' boxes are head, upper torso (chest and arms), lower torso and legs.
 LOCATIONS = (
     ("none", "locNone"),
     ("head", "locHead"),
     ("torso", "locTorsoUpper"),
+    ("torsoLower", "locTorsoLower"),
     ("legs", "locRightLegUpper"),
 )
 
@@ -275,7 +310,7 @@ def main() -> None:
         print(emit_ballistics_module(ids), end="")
         return
     for source_id in ids:
-        group = PISTOLS if source_id in PISTOLS else ROSTER
+        group = PISTOLS if source_id in PISTOLS else ROSTER + SNIPERS
         print(emit_definition(source_id, group.index(source_id) + 1))
 
 

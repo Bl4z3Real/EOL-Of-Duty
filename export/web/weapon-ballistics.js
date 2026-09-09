@@ -35,7 +35,8 @@ export const WEAPON_BALLISTICS = Object.freeze({
       "head": 1.2,
       "legs": 1.0,
       "none": 1.0,
-      "torso": 1.0
+      "torso": 1.0,
+      "torsoLower": 1.0
     },
     "maxDamageRange": 1300.0,
     "moveSpeedScale": 0.95,
@@ -55,6 +56,102 @@ export const WEAPON_BALLISTICS = Object.freeze({
       }
     ],
     "sprintOutTime": 0.2
+  },
+  "as50": {
+    "adsKick": {
+      "centerSpeed": 850.0,
+      "minMagnitude": 30.0,
+      "pitchMax": 70.0,
+      "pitchMin": 50.0,
+      "yawMax": 40.0,
+      "yawMin": -60.0
+    },
+    "adsSpread": 0.0,
+    "adsTransInTime": 0.4,
+    "adsTransOutTime": 0.6,
+    "damage": 95.0,
+    "hipKick": {
+      "centerSpeed": 1000.0,
+      "minMagnitude": 30.0,
+      "pitchMax": 60.0,
+      "pitchMin": 50.0,
+      "yawMax": 40.0,
+      "yawMin": -60.0
+    },
+    "hipSpread": {
+      "decayRate": 5.0,
+      "duckedMax": 14.0,
+      "duckedMin": 9.5,
+      "fireAdd": 1.0,
+      "max": 15.0,
+      "moveAdd": 5.0,
+      "standMin": 10.0
+    },
+    "locations": {
+      "head": 2.0,
+      "legs": 1.0,
+      "none": 1.0,
+      "torso": 1.5,
+      "torsoLower": 1.0
+    },
+    "maxDamageRange": 4000.0,
+    "moveSpeedScale": 0.95,
+    "penetrateType": "large",
+    "ranges": [
+      {
+        "damage": 95.0,
+        "range": 5000.0
+      }
+    ],
+    "sprintOutTime": 0.25
+  },
+  "ballista": {
+    "adsKick": {
+      "centerSpeed": 500.0,
+      "minMagnitude": 30.0,
+      "pitchMax": 40.0,
+      "pitchMin": 40.0,
+      "yawMax": -40.0,
+      "yawMin": 25.0
+    },
+    "adsSpread": 0.0,
+    "adsTransInTime": 0.35,
+    "adsTransOutTime": 0.4,
+    "damage": 95.0,
+    "hipKick": {
+      "centerSpeed": 500.0,
+      "minMagnitude": 30.0,
+      "pitchMax": 60.0,
+      "pitchMin": 40.0,
+      "yawMax": -55.0,
+      "yawMin": -50.0
+    },
+    "hipSpread": {
+      "decayRate": 5.0,
+      "duckedMax": 14.0,
+      "duckedMin": 9.5,
+      "fireAdd": 1.0,
+      "max": 15.0,
+      "moveAdd": 5.0,
+      "standMin": 10.0
+    },
+    "locations": {
+      "head": 2.0,
+      "legs": 1.0,
+      "none": 1.0,
+      "torso": 1.5,
+      "torsoLower": 1.0
+    },
+    "maxDamageRange": 3000.0,
+    "moveSpeedScale": 0.96,
+    "penetrateType": "large",
+    "ranges": [
+      {
+        "damage": 95.0,
+        "range": 3001.0
+      }
+    ],
+    "sprintOutTime": 0.25
   },
   "beretta93r": {
     "adsKick": {
@@ -90,7 +187,8 @@ export const WEAPON_BALLISTICS = Object.freeze({
       "head": 1.4,
       "legs": 1.0,
       "none": 1.0,
-      "torso": 1.0
+      "torso": 1.0,
+      "torsoLower": 1.0
     },
     "maxDamageRange": 600.0,
     "moveSpeedScale": 1.0,
@@ -118,6 +216,54 @@ export const WEAPON_BALLISTICS = Object.freeze({
       }
     ],
     "sprintOutTime": 0.2
+  },
+  "dsr50": {
+    "adsKick": {
+      "centerSpeed": 750.0,
+      "minMagnitude": 30.0,
+      "pitchMax": 67.0,
+      "pitchMin": 67.0,
+      "yawMax": -60.0,
+      "yawMin": 10.0
+    },
+    "adsSpread": 0.0,
+    "adsTransInTime": 0.4,
+    "adsTransOutTime": 0.5,
+    "damage": 98.0,
+    "hipKick": {
+      "centerSpeed": 500.0,
+      "minMagnitude": 30.0,
+      "pitchMax": 100.0,
+      "pitchMin": 80.0,
+      "yawMax": -55.0,
+      "yawMin": -50.0
+    },
+    "hipSpread": {
+      "decayRate": 5.0,
+      "duckedMax": 14.0,
+      "duckedMin": 9.5,
+      "fireAdd": 1.0,
+      "max": 15.0,
+      "moveAdd": 5.0,
+      "standMin": 10.0
+    },
+    "locations": {
+      "head": 2.0,
+      "legs": 1.0,
+      "none": 1.0,
+      "torso": 1.5,
+      "torsoLower": 1.5
+    },
+    "maxDamageRange": 4000.0,
+    "moveSpeedScale": 0.95,
+    "penetrateType": "large",
+    "ranges": [
+      {
+        "damage": 98.0,
+        "range": 5000.0
+      }
+    ],
+    "sprintOutTime": 0.25
   },
   "fiveseven": {
     "adsKick": {
@@ -153,7 +299,8 @@ export const WEAPON_BALLISTICS = Object.freeze({
       "head": 1.4,
       "legs": 1.0,
       "none": 1.0,
-      "torso": 1.0
+      "torso": 1.0,
+      "torsoLower": 1.0
     },
     "maxDamageRange": 100.0,
     "moveSpeedScale": 1.0,
@@ -216,7 +363,8 @@ export const WEAPON_BALLISTICS = Object.freeze({
       "head": 1.4,
       "legs": 1.0,
       "none": 1.0,
-      "torso": 1.0
+      "torso": 1.0,
+      "torsoLower": 1.0
     },
     "maxDamageRange": 350.0,
     "moveSpeedScale": 1.0,
@@ -279,7 +427,8 @@ export const WEAPON_BALLISTICS = Object.freeze({
       "head": 1.4,
       "legs": 1.0,
       "none": 1.0,
-      "torso": 1.0
+      "torso": 1.0,
+      "torsoLower": 1.0
     },
     "maxDamageRange": 500.0,
     "moveSpeedScale": 1.0,
@@ -342,7 +491,8 @@ export const WEAPON_BALLISTICS = Object.freeze({
       "head": 1.1,
       "legs": 1.0,
       "none": 1.0,
-      "torso": 1.0
+      "torso": 1.0,
+      "torsoLower": 1.0
     },
     "maxDamageRange": 500.0,
     "moveSpeedScale": 0.95,
@@ -397,7 +547,8 @@ export const WEAPON_BALLISTICS = Object.freeze({
       "head": 1.2,
       "legs": 1.0,
       "none": 0.0,
-      "torso": 1.0
+      "torso": 1.0,
+      "torsoLower": 1.0
     },
     "maxDamageRange": 650.0,
     "moveSpeedScale": 0.95,
@@ -452,7 +603,8 @@ export const WEAPON_BALLISTICS = Object.freeze({
       "head": 1.2,
       "legs": 1.0,
       "none": 1.0,
-      "torso": 1.0
+      "torso": 1.0,
+      "torsoLower": 1.0
     },
     "maxDamageRange": 1000.0,
     "moveSpeedScale": 0.95,
@@ -515,7 +667,8 @@ export const WEAPON_BALLISTICS = Object.freeze({
       "head": 1.2,
       "legs": 1.0,
       "none": 0.0,
-      "torso": 1.0
+      "torso": 1.0,
+      "torsoLower": 1.0
     },
     "maxDamageRange": 1500.0,
     "moveSpeedScale": 0.95,
@@ -570,7 +723,8 @@ export const WEAPON_BALLISTICS = Object.freeze({
       "head": 1.2,
       "legs": 1.0,
       "none": 1.0,
-      "torso": 1.0
+      "torso": 1.0,
+      "torsoLower": 1.0
     },
     "maxDamageRange": 2000.0,
     "moveSpeedScale": 0.95,
@@ -590,6 +744,54 @@ export const WEAPON_BALLISTICS = Object.freeze({
       }
     ],
     "sprintOutTime": 0.2
+  },
+  "svu": {
+    "adsKick": {
+      "centerSpeed": 800.0,
+      "minMagnitude": 30.0,
+      "pitchMax": 40.0,
+      "pitchMin": 15.0,
+      "yawMax": 40.0,
+      "yawMin": -40.0
+    },
+    "adsSpread": 0.0,
+    "adsTransInTime": 0.4,
+    "adsTransOutTime": 0.4,
+    "damage": 70.0,
+    "hipKick": {
+      "centerSpeed": 1000.0,
+      "minMagnitude": 30.0,
+      "pitchMax": 40.0,
+      "pitchMin": 15.0,
+      "yawMax": 40.0,
+      "yawMin": -40.0
+    },
+    "hipSpread": {
+      "decayRate": 5.0,
+      "duckedMax": 14.0,
+      "duckedMin": 9.5,
+      "fireAdd": 1.0,
+      "max": 15.0,
+      "moveAdd": 5.0,
+      "standMin": 10.0
+    },
+    "locations": {
+      "head": 1.5,
+      "legs": 1.0,
+      "none": 1.0,
+      "torso": 1.0,
+      "torsoLower": 1.0
+    },
+    "maxDamageRange": 2500.0,
+    "moveSpeedScale": 0.95,
+    "penetrateType": "large",
+    "ranges": [
+      {
+        "damage": 70.0,
+        "range": 3000.0
+      }
+    ],
+    "sprintOutTime": 0.25
   },
   "tar21": {
     "adsKick": {
@@ -625,7 +827,8 @@ export const WEAPON_BALLISTICS = Object.freeze({
       "head": 1.2,
       "legs": 1.0,
       "none": 1.0,
-      "torso": 1.0
+      "torso": 1.0,
+      "torsoLower": 1.0
     },
     "maxDamageRange": 550.0,
     "moveSpeedScale": 0.95,
@@ -680,7 +883,8 @@ export const WEAPON_BALLISTICS = Object.freeze({
       "head": 1.1,
       "legs": 1.0,
       "none": 1.0,
-      "torso": 1.0
+      "torso": 1.0,
+      "torsoLower": 1.0
     },
     "maxDamageRange": 250.0,
     "moveSpeedScale": 0.95,
@@ -735,7 +939,8 @@ export const WEAPON_BALLISTICS = Object.freeze({
       "head": 1.0,
       "legs": 1.0,
       "none": 1.0,
-      "torso": 1.0
+      "torso": 1.0,
+      "torsoLower": 1.0
     },
     "maxDamageRange": 250.0,
     "moveSpeedScale": 0.95,

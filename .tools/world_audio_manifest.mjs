@@ -63,6 +63,9 @@ export const WORLD_ALIAS_PATTERNS = Object.freeze([
   /^mus_(spawn_short_fbi|victory|loss|draw|time_running_out)$/,
   // Pistol reports and dry fire, for the secondary slot and the bots that carry one.
   /^wpn_(fiveseven|kard|fnp45|beretta93r)_(fire_npc|fire_npc_decay|fire_npc_dist|dryfire_plr)$/,
+  // Sniper reports for the bots, and the scope raise the weapon files name.
+  /^wpn_(dsr50|ballista|svu|as50)_(fire_npc|fire_npc_decay|fire_npc_dist|dryfire_plr)$/,
+  /^fly_scope_zoom$/,
   // Rifle melee is knife_mp: the swing, the knife's own draw, and hit or miss.
   /^wpn_melee_(whoosh_plr|knife_hit_body|knife_hit_other|hit_other|knife_hit_lfe|hit_plr|hit_plr_lfe|knife_draw_plr|knife_sheath_plr)$/,
   /^wpn_knife_melee_stab$/,

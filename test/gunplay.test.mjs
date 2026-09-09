@@ -11,7 +11,8 @@ const m27 = WEAPON_BALLISTICS.m27;
 
 test('ballistics module covers the rifle and pistol roster with weapon-file values', () => {
   assert.deepEqual(Object.keys(WEAPON_BALLISTICS).sort(), [
-    'an94', 'beretta93r', 'fiveseven', 'fnp45', 'kard', 'm27', 'sa58', 'saritch', 'scar', 'sig556', 'tar21', 'type95', 'xm8',
+    'an94', 'as50', 'ballista', 'beretta93r', 'dsr50', 'fiveseven', 'fnp45', 'kard', 'm27', 'sa58', 'saritch', 'scar',
+    'sig556', 'svu', 'tar21', 'type95', 'xm8',
   ]);
   // Five-seven: 55 to 100 units, then the pistol falloff down to 19.
   assert.equal(WEAPON_BALLISTICS.fiveseven.damage, 55);
@@ -41,6 +42,10 @@ test('locational multipliers come from the file and default to locNone', () => {
   assert.equal(locationMultiplier(m27, 'head'), 1.1);
   assert.equal(locationMultiplier(m27, 'torso'), 1);
   assert.equal(locationMultiplier(m27, 'legs'), 1);
+  // The files score the lower torso apart: the DSR 50 one-shots it, the XPR-50 does not.
+  assert.equal(locationMultiplier(WEAPON_BALLISTICS.dsr50, 'torsoLower'), 1.5);
+  assert.equal(locationMultiplier(WEAPON_BALLISTICS.as50, 'torsoLower'), 1);
+  assert.equal(locationMultiplier(WEAPON_BALLISTICS.as50, 'torso'), 1.5);
   assert.equal(locationMultiplier(m27, 'tail'), 1);
 });
 

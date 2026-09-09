@@ -49,6 +49,7 @@
 !/.tools/pack_web_textures.mjs
 !/.tools/ai-game.mjs
 !/.tools/mobile-game.mjs
+!/.tools/sniper-game.mjs
 !/.tools/graphics-game.mjs
 !/.tools/convert_textures.py
 !/.tools/world_audio_manifest.mjs

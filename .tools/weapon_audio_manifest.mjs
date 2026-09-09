@@ -27,7 +27,7 @@ const repoRoot = path.resolve(toolsDir, '..');
 
 // Clips whose notetracks the first-person weapon actually plays. Sprint, raise
 // and drop clips carry cues too, but nothing in the web viewer fires them yet.
-const CLIP_FIELDS = ['idleAnim', 'fireAnim', 'fireIntroAnim', 'reloadAnim', 'reloadEmptyAnim'];
+const CLIP_FIELDS = ['idleAnim', 'fireAnim', 'fireIntroAnim', 'reloadAnim', 'reloadEmptyAnim', 'rechamberAnim', 'adsRechamberAnim'];
 
 // The shipped mix layers a decay tail and an LFE thump under the report; both
 // are derived alias names rather than their own weapon-file fields.
@@ -44,7 +44,8 @@ export const ASSAULT_RIFLE_IDS = Object.freeze([
 // The secondary slot. Pistol reload foley is shared across the class the same
 // way the rifles' is (fly_pistol_*), so the map stays one sample per cue.
 export const PISTOL_IDS = Object.freeze(['fiveseven', 'fnp45', 'kard', 'beretta93r']);
-export const PLAYER_WEAPON_IDS = Object.freeze([...ASSAULT_RIFLE_IDS, ...PISTOL_IDS]);
+export const SNIPER_IDS = Object.freeze(['dsr50', 'ballista', 'svu', 'as50']);
+export const PLAYER_WEAPON_IDS = Object.freeze([...ASSAULT_RIFLE_IDS, ...PISTOL_IDS, ...SNIPER_IDS]);
 
 // The shipped sig556/xm8 records put their LFE aliases in fireSoundPlayer.
 // Those aliases do resolve, but only to the thump layer; the real shot aliases

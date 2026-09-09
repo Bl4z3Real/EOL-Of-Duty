@@ -431,6 +431,7 @@
     "fly_lstep_walk_water": "water_run_00",
     "fly_lstep_walk_wood": "wood_run_00",
     "fly_melee_get_hit_plr": "imp_rifle_butt_00",
+    "fly_scope_zoom": "wpn_scope_zoom",
     "mpl_hit_alert": "alert_00",
     "mpl_ui_timer_countdown": "evt_mpl_clock_beep",
     "mus_draw": "06_wm_01_v1_stg",
@@ -471,10 +472,19 @@
     "wpn_an94_fire_npc": "wpn_an94_shot_plr",
     "wpn_an94_fire_npc_decay": "wpn_assault_decay_ext",
     "wpn_an94_fire_npc_dist": "wpn_assault_dist_00",
+    "wpn_as50_dryfire_plr": "dry_fire_00",
+    "wpn_as50_fire_npc": "wpn_as50_fire_plr",
+    "wpn_as50_fire_npc_decay": "wpn_rifle_decay_int",
+    "wpn_ballista_dryfire_plr": "dry_fire_00",
+    "wpn_ballista_fire_npc": "wpn_ballista_fire_plr",
+    "wpn_ballista_fire_npc_decay": "wpn_rifle_decay_int",
     "wpn_beretta93r_dryfire_plr": "dry_fire_plr",
     "wpn_beretta93r_fire_npc": "wpn_beretta_fire_plr",
     "wpn_beretta93r_fire_npc_decay": "wpn_pistol_decay_ext",
     "wpn_beretta93r_fire_npc_dist": "wpn_pistol_dist_00",
+    "wpn_dsr50_dryfire_plr": "dry_fire_00",
+    "wpn_dsr50_fire_npc": "wpn_dsr_fire_plr",
+    "wpn_dsr50_fire_npc_decay": "wpn_rifle_decay_int",
     "wpn_fiveseven_dryfire_plr": "dry_fire_plr",
     "wpn_fiveseven_fire_npc": "wpn_fiveseven_shot_plr",
     "wpn_fiveseven_fire_npc_decay": "wpn_pistol_decay_ext",
@@ -578,6 +588,9 @@
     "wpn_smoke_hiss_lp": "smoke_hiss_lp",
     "wpn_smoke_hiss_start": "smoke_hiss_start",
     "wpn_smoke_pull_pin_plyr": "pin",
+    "wpn_svu_dryfire_plr": "dry_fire_00",
+    "wpn_svu_fire_npc": "wpn_svt_fire_plr",
+    "wpn_svu_fire_npc_decay": "wpn_rifle_decay_int",
     "wpn_tar21_dryfire_plr": "dry_fire_00",
     "wpn_tar21_fire_npc": "wpn_tar21_shot_plr",
     "wpn_tar21_fire_npc_decay": "wpn_assault_decay_ext",
@@ -1068,6 +1081,7 @@
       "./audio/world/wood_sprint_04.wav"
     ],
     "wpn_an94_shot_plr": "./audio/world/wpn_an94_shot_plr.wav",
+    "wpn_as50_fire_plr": "./audio/world/wpn_as50_fire_plr.wav",
     "wpn_assault_away": "./audio/world/wpn_assault_away.wav",
     "wpn_assault_decay_ext": [
       "./audio/world/wpn_assault_decay_ext.wav",
@@ -1079,7 +1093,9 @@
       "./audio/world/wpn_assault_dist_02.wav",
       "./audio/world/wpn_assault_dist_03.wav"
     ],
+    "wpn_ballista_fire_plr": "./audio/world/wpn_ballista_fire_plr.wav",
     "wpn_beretta_fire_plr": "./audio/world/wpn_beretta_fire_plr.wav",
+    "wpn_dsr_fire_plr": "./audio/world/wpn_dsr_fire_plr.wav",
     "wpn_fiveseven_shot_plr": "./audio/world/wpn_fiveseven_shot_plr.wav",
     "wpn_fnp45_fire_plr": "./audio/world/wpn_fnp45_fire_plr.wav",
     "wpn_generic_ads_00": "./audio/world/wpn_generic_ads_00.wav",
@@ -1103,10 +1119,16 @@
       "./audio/world/wpn_pistol_dist_01.wav",
       "./audio/world/wpn_pistol_dist_02.wav"
     ],
+    "wpn_rifle_decay_int": [
+      "./audio/world/wpn_rifle_decay_int.wav",
+      "./audio/world/wpn_sniper_decay_ext.wav"
+    ],
     "wpn_sa58_shot_plr": "./audio/world/wpn_sa58_shot_plr.wav",
     "wpn_saritch_shot_plr": "./audio/world/wpn_saritch_shot_plr.wav",
     "wpn_scar_shot_plr": "./audio/world/wpn_scar_shot_plr.wav",
+    "wpn_scope_zoom": "./audio/world/wpn_scope_zoom.wav",
     "wpn_sig556_shot_plr": "./audio/world/wpn_sig556_shot_plr.wav",
+    "wpn_svt_fire_plr": "./audio/world/wpn_svt_fire_plr.wav",
     "wpn_tar21_shot_plr": "./audio/world/wpn_tar21_shot_plr.wav",
     "wpn_type95_shot_plr": "./audio/world/wpn_type95_shot_plr.wav",
     "wpn_xm8_shot_plr": "./audio/world/wpn_xm8_shot_plr.wav"
@@ -3760,6 +3782,12 @@
       "distMax": 5000,
       "bus": "fx"
     },
+    "fly_scope_zoom": {
+      "volume": 85,
+      "distMin": 0,
+      "distMax": 5000,
+      "bus": "fx"
+    },
     "mpl_hit_alert": {
       "volume": 83,
       "distMin": 0,
@@ -4000,6 +4028,42 @@
       "distMax": 6000,
       "bus": "fx"
     },
+    "wpn_as50_dryfire_plr": {
+      "volume": 88,
+      "distMin": 0,
+      "distMax": 5000,
+      "bus": "fx"
+    },
+    "wpn_as50_fire_npc": {
+      "volume": 90,
+      "distMin": 900,
+      "distMax": 900,
+      "bus": "fx"
+    },
+    "wpn_as50_fire_npc_decay": {
+      "volume": 80,
+      "distMin": 50,
+      "distMax": 900,
+      "bus": "fx"
+    },
+    "wpn_ballista_dryfire_plr": {
+      "volume": 88,
+      "distMin": 0,
+      "distMax": 5000,
+      "bus": "fx"
+    },
+    "wpn_ballista_fire_npc": {
+      "volume": 92,
+      "distMin": 900,
+      "distMax": 900,
+      "bus": "fx"
+    },
+    "wpn_ballista_fire_npc_decay": {
+      "volume": 80,
+      "distMin": 50,
+      "distMax": 900,
+      "bus": "fx"
+    },
     "wpn_beretta93r_dryfire_plr": {
       "volume": 90,
       "distMin": 0,
@@ -4022,6 +4086,24 @@
       "volume": 81,
       "distMin": 900,
       "distMax": 6000,
+      "bus": "fx"
+    },
+    "wpn_dsr50_dryfire_plr": {
+      "volume": 88,
+      "distMin": 0,
+      "distMax": 5000,
+      "bus": "fx"
+    },
+    "wpn_dsr50_fire_npc": {
+      "volume": 92,
+      "distMin": 900,
+      "distMax": 900,
+      "bus": "fx"
+    },
+    "wpn_dsr50_fire_npc_decay": {
+      "volume": 80,
+      "distMin": 50,
+      "distMax": 900,
       "bus": "fx"
     },
     "wpn_fiveseven_dryfire_plr": {
@@ -4640,6 +4722,24 @@
       "volume": 75,
       "distMin": 100,
       "distMax": 500,
+      "bus": "fx"
+    },
+    "wpn_svu_dryfire_plr": {
+      "volume": 88,
+      "distMin": 0,
+      "distMax": 5000,
+      "bus": "fx"
+    },
+    "wpn_svu_fire_npc": {
+      "volume": 88,
+      "distMin": 900,
+      "distMax": 900,
+      "bus": "fx"
+    },
+    "wpn_svu_fire_npc_decay": {
+      "volume": 80,
+      "distMin": 50,
+      "distMax": 900,
       "bus": "fx"
     },
     "wpn_tar21_dryfire_plr": {

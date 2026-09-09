@@ -114,14 +114,19 @@ export async function runMobileTest(page, artifactRoot) {
   };
   const wait = (predicate) => page.waitForFunction(predicate, null, { timeout: 45000 });
   const buttonsFit = async () => page.locator('#touch-controls button').evaluateAll(buttons =>
-    buttons.every(button => {
+    buttons.filter(button => !button.hidden).every(button => {
       const r = button.getBoundingClientRect();
       return r.width >= 44 && r.height >= 44 && r.left >= 0 && r.top >= 0 &&
         r.right <= innerWidth && r.bottom <= innerHeight;
     }));
 
-  await page.evaluate(() => globalThis.hijacked.debug.setActive(false));
+  // Combat has its own encounter suite; random deaths must not eat input.
+  await page.evaluate(() => {
+    globalThis.hijacked.debug.setEnemiesActive(false);
+    globalThis.hijacked.debug.setActive(false);
+  });
   await shot('menu-landscape');
+  check('combatIsolated', !(await state()).enemiesActive);
   const started = await tap('[data-action="resume"]', 'landscape');
   await wait(() => globalThis.hijacked.debug.getState().input.touch.enabled);
   check('touchStartsWithoutPointerLock', started.active && started.input.touch.mode &&
@@ -314,7 +319,10 @@ export async function runMobileTest(page, artifactRoot) {
   }
   await page.setViewportSize({ width: 844, height: 390 });
   await shot('landscape-final');
-  await page.evaluate(() => globalThis.hijacked.debug.pause());
+  await page.evaluate(() => {
+    globalThis.hijacked.debug.pause();
+    globalThis.hijacked.debug.setEnemiesActive(true);
+  });
   await shot('final');
   return { checks, states: Object.keys(states) };
 }

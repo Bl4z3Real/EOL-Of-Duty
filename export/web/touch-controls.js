@@ -14,7 +14,7 @@ export class TouchInput {
     for (const id of [...this.pointers.keys()]) this.end(id, true);
     this.pointers.clear();
     this.forward = this.strafe = this.stickX = this.stickY = 0;
-    this.sprint = this.aim = this.crouch = this.fire = false;
+    this.sprint = this.aim = this.crouch = this.fire = this.breath = false;
     this.jumpQueued = this.fireQueued = false;
   }
 
@@ -22,6 +22,7 @@ export class TouchInput {
     if (this.pointers.has(id) || [...this.pointers.values()].some(p => p.kind === kind)) return false;
     this.pointers.set(id, { kind, x, y, originX: x, originY: y, radius });
     if (kind === 'fire') this.fire = this.fireQueued = true;
+    if (kind === 'breath') this.breath = true;
     if (kind === 'jump') this.jumpQueued = true;
     if (kind === 'aim') this.aim = !this.aim;
     if (kind === 'crouch') this.crouch = !this.crouch;
@@ -58,6 +59,7 @@ export class TouchInput {
     const p = this.pointers.get(id);
     if (!p) return;
     this.pointers.delete(id);
+    if (p.kind === 'breath') this.breath = false;
     if (p.kind === 'frag') this.onAction('frag', cancelled ? 'cancel' : 'release');
     if (p.kind === 'move') {
       this.forward = this.strafe = this.stickX = this.stickY = 0;
@@ -75,7 +77,7 @@ export class TouchInput {
     const input = {
       forward: this.forward, strafe: this.strafe,
       sprint: this.sprint && !this.aim && !fire && !this.crouch,
-      crouch: this.crouch, aim: this.aim, fire, jump: this.jumpQueued,
+      crouch: this.crouch, aim: this.aim, fire, jump: this.jumpQueued, breath: this.breath,
     };
     this.fireQueued = this.jumpQueued = false;
     return input;
@@ -85,7 +87,7 @@ export class TouchInput {
     return {
       pointers: this.pointers.size, forward: this.forward, strafe: this.strafe,
       sprint: this.sprint && !this.aim && !this.fire && !this.crouch,
-      aim: this.aim, crouch: this.crouch, fire: this.fire,
+      aim: this.aim, crouch: this.crouch, fire: this.fire, breath: this.breath,
       frag: [...this.pointers.values()].some(p => p.kind === 'frag'),
     };
   }

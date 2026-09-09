@@ -496,10 +496,13 @@ class Enemy {
     this.showVisualFrame('idle', 0);
 
     this.hitboxes = [
-      // Regions only; the shooter's weapon file supplies the multipliers.
-      makeHitbox(new THREE.BoxGeometry(18, 34, 15), new THREE.Vector3(0, 43, 0), this, 1, 'torso'),
+      // Regions only; the shooter's weapon file supplies the multipliers. The
+      // torso is two boxes because the files score them apart: a sniper's
+      // locTorsoUpper is 1.5 while the XPR-50's locTorsoLower is 1.
+      makeHitbox(new THREE.BoxGeometry(18, 16, 15), new THREE.Vector3(0, 52, 0), this, 1, 'torso'),
       makeHitbox(new THREE.SphereGeometry(7, 8, 6), new THREE.Vector3(0, 65, 0), this, 1, 'head'),
       makeHitbox(new THREE.BoxGeometry(17, 29, 13), new THREE.Vector3(0, 16, 0), this, 1, 'legs'),
+      makeHitbox(new THREE.BoxGeometry(18, 18, 15), new THREE.Vector3(0, 35, 0), this, 1, 'torsoLower'),
     ];
     this.root.add(...this.hitboxes);
     manager.scene.add(this.root);

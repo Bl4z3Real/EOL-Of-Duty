@@ -14,7 +14,7 @@ const degToRad = (degrees) => degrees * (Math.PI / 180);
 
 // Create-a-class tabs, in the game's order. Each holds one equipped weapon.
 export const WEAPON_CLASSES = Object.freeze({
-  primary: Object.freeze({ id: 'primary', label: 'Primary', hint: 'Assault rifles', key: 'Digit1' }),
+  primary: Object.freeze({ id: 'primary', label: 'Primary', hint: 'Assault and sniper rifles', key: 'Digit1' }),
   secondary: Object.freeze({ id: 'secondary', label: 'Secondary', hint: 'Pistols', key: 'Digit2' }),
   lethal: Object.freeze({ id: 'lethal', label: 'Lethal', hint: 'Thrown with G', key: 'KeyG' }),
   tactical: Object.freeze({ id: 'tactical', label: 'Tactical', hint: 'Thrown with Q', key: 'KeyQ' }),
@@ -314,6 +314,166 @@ export const WEAPONS = Object.freeze({
     }),
   }),
 
+  // Sniper rifles share the primary slot. `scope` is the weapon file's ADS:
+  // the world zooms to zoomFov (three slots, all equal without the Variable
+  // Zoom attachment), the gun leaves the view and the overlay image stands in
+  // for the glass, with idleAmount worth of sway that a held breath steadies.
+  // The bolt-actions work the bolt after every shot. The game deals two spare
+  // magazines of sniper ammunition.
+  dsr50: Object.freeze({
+    id: 'dsr50',
+    name: 'DSR 50',
+    class: 'primary',
+    role: 'Sniper rifle',
+    slot: 10,
+    sourceId: 'dsr50',
+    magazineSize: 5,
+    reserveAmmo: 10,
+    roundsPerMinute: 300,
+    fireMode: 'single',
+    damage: 98,
+    fireTypeIcon: 'hud_mp_firerate_bolt',
+    cardArt: 'ui/menu_mp_weapons_dsr50_big.png',
+    viewmodelUrl: 'viewmodel/t6_wpn_sniper_dsr50_view_lod0.glb',
+    worldModelUrl: 'enemies/t6_wpn_sniper_dsr50_world_lod1.glb',
+    scope: Object.freeze({
+      zoomFov: 15,
+      zoomLevels: Object.freeze([15, 15, 15]),
+      overlay: 'ui/scope/scope_overlay_dsr50.png',
+      idleAmount: 60,
+      swayMaxAngle: 2,
+    }),
+    boltAction: true,
+    magazineUrl: 'viewmodel/t6_attach_mag_dsr50_view_lod0.glb',
+    // Authored attachment offset from the shipped dsr50_mp weapon file.
+    magazineOffset: Object.freeze([-6.18, 0, 0.861]),
+    magazineRotation: Object.freeze([0, 0, 0]),
+    clips: Object.freeze({
+      idle: 'viewmodel/anims/viewmodel_dsr50_idle.json',
+      fire: 'viewmodel/anims/viewmodel_dsr50_fire.json',
+      adsFire: 'viewmodel/anims/viewmodel_dsr50_ads_fire.json',
+      reload: 'viewmodel/anims/viewmodel_dsr50_reload.json',
+      reloadEmpty: 'viewmodel/anims/viewmodel_dsr50_reload_empty.json',
+      rechamber: 'viewmodel/anims/viewmodel_dsr50_rechamber.json',
+      adsRechamber: 'viewmodel/anims/viewmodel_dsr50_ads_rechamber.json',
+    }),
+  }),
+  ballista: Object.freeze({
+    id: 'ballista',
+    name: 'Ballista',
+    class: 'primary',
+    role: 'Sniper rifle',
+    slot: 11,
+    sourceId: 'ballista',
+    magazineSize: 7,
+    reserveAmmo: 14,
+    roundsPerMinute: 300,
+    fireMode: 'single',
+    damage: 95,
+    fireTypeIcon: 'hud_mp_firerate_bolt',
+    cardArt: 'ui/menu_mp_weapons_ballista_big.png',
+    viewmodelUrl: 'viewmodel/t6_wpn_sniper_ballista_view_lod0.glb',
+    worldModelUrl: 'enemies/t6_wpn_sniper_ballista_world_lod1.glb',
+    scope: Object.freeze({
+      zoomFov: 15,
+      zoomLevels: Object.freeze([15, 15, 15]),
+      overlay: 'ui/scope/scope_overlay_ballista.png',
+      idleAmount: 35,
+      swayMaxAngle: 2,
+    }),
+    boltAction: true,
+    magazineUrl: 'viewmodel/t6_attach_mag_ballista_view_lod0.glb',
+    // Authored attachment offset from the shipped ballista_mp weapon file.
+    magazineOffset: Object.freeze([5.799, 0, -0.395]),
+    magazineRotation: Object.freeze([0, 0, 0]),
+    clips: Object.freeze({
+      idle: 'viewmodel/anims/viewmodel_ballista_idle.json',
+      fire: 'viewmodel/anims/viewmodel_ballista_fire.json',
+      adsFire: 'viewmodel/anims/viewmodel_ballista_ads_fire.json',
+      reload: 'viewmodel/anims/viewmodel_ballista_reload.json',
+      reloadEmpty: 'viewmodel/anims/viewmodel_ballista_reload_empty.json',
+      rechamber: 'viewmodel/anims/viewmodel_ballista_rechamber.json',
+      adsRechamber: 'viewmodel/anims/viewmodel_ballista_ads_rechamber.json',
+    }),
+  }),
+  svu: Object.freeze({
+    id: 'svu',
+    name: 'SVU-AS',
+    class: 'primary',
+    role: 'Sniper rifle',
+    slot: 12,
+    sourceId: 'svu',
+    magazineSize: 12,
+    reserveAmmo: 24,
+    roundsPerMinute: 417,
+    fireMode: 'single',
+    damage: 70,
+    fireTypeIcon: 'hud_mp_firerate_single',
+    cardArt: 'ui/menu_mp_weapons_svu_big.png',
+    viewmodelUrl: 'viewmodel/t6_wpn_sniper_svu_view_lod0.glb',
+    worldModelUrl: 'enemies/t6_wpn_sniper_svu_world_lod1.glb',
+    scope: Object.freeze({
+      zoomFov: 20,
+      zoomLevels: Object.freeze([20, 20, 20]),
+      overlay: 'ui/scope/scope_overlay_svu.png',
+      idleAmount: 26,
+      swayMaxAngle: 2,
+    }),
+    boltAction: false,
+    magazineUrl: 'viewmodel/t6_attach_mag_svu_view_lod0.glb',
+    // Authored attachment offset from the shipped svu_mp weapon file.
+    magazineOffset: Object.freeze([-5.784, 0, 0.095]),
+    magazineRotation: Object.freeze([0, 0, 0]),
+    clips: Object.freeze({
+      idle: 'viewmodel/anims/viewmodel_svu_as_idle.json',
+      fire: 'viewmodel/anims/viewmodel_svu_as_fire.json',
+      adsFire: 'viewmodel/anims/viewmodel_svu_as_fire.json',
+      reload: 'viewmodel/anims/viewmodel_svu_as_reload.json',
+      reloadEmpty: 'viewmodel/anims/viewmodel_svu_as_reload_empty.json',
+    }),
+  }),
+  as50: Object.freeze({
+    id: 'as50',
+    name: 'XPR-50',
+    class: 'primary',
+    role: 'Sniper rifle',
+    slot: 13,
+    sourceId: 'as50',
+    magazineSize: 8,
+    reserveAmmo: 16,
+    roundsPerMinute: 375,
+    fireMode: 'single',
+    damage: 95,
+    fireTypeIcon: 'hud_mp_firerate_single',
+    cardArt: 'ui/menu_mp_weapons_as50_big.png',
+    viewmodelUrl: 'viewmodel/t6_wpn_sniper_xpr50_view_lod0.glb',
+    worldModelUrl: 'enemies/t6_wpn_sniper_xpr50_world_lod1.glb',
+    scope: Object.freeze({
+      zoomFov: 15,
+      zoomLevels: Object.freeze([15, 15, 15]),
+      overlay: 'ui/scope/scope_overlay_xpr50.png',
+      idleAmount: 60,
+      swayMaxAngle: 0.1,
+    }),
+    boltAction: false,
+    // The XPR-50's clips were authored against a hands rig whose torso sits
+    // 13 units ahead of the FBI viewhands' bind, and its idle carries no torso
+    // track, so on the bind the receiver lands in the camera. This is the
+    // torso pose its own ads_up clip opens on.
+    torsoBind: Object.freeze([8.68, -3.97, -4.64]),
+    magazineUrl: 'viewmodel/t6_attach_mag_xpr50_view_lod0.glb',
+    // Authored attachment offset from the shipped as50_mp weapon file.
+    magazineOffset: Object.freeze([6.332, 0, -0.345]),
+    magazineRotation: Object.freeze([0, 0, 0]),
+    clips: Object.freeze({
+      idle: 'viewmodel/anims/viewmodel_xpr50_idle.json',
+      fire: 'viewmodel/anims/viewmodel_xpr50_fire.json',
+      adsFire: 'viewmodel/anims/viewmodel_xpr50_fire.json',
+      reload: 'viewmodel/anims/viewmodel_xpr50_reload.json',
+      reloadEmpty: 'viewmodel/anims/viewmodel_xpr50_reload_empty.json',
+    }),
+  }),
+
   // Secondaries. Pistol magazines are part of the gun model, so there is no
   // separate attachment to weld; the reload clips animate the gun's own
   // tag_clip. Each carries its own pistol-whip melee clip. The game starts a
@@ -426,6 +586,24 @@ export const WEAPONS = Object.freeze({
 });
 
 export const WEAPON_IDS = Object.freeze(Object.keys(WEAPONS));
+
+// Scope behaviour shared by every sniper, on top of the per-weapon `scope`.
+// The world zooms as the sight comes up; the overlay lands at the top of the
+// raise (adsZoomInFrac 0) and leaves at the first touch of the lower
+// (adsZoomOutFrac 0.05). Sway is a slow figure of eight scaled by the file's
+// adsIdleAmount; holding breath (Shift in the scope) steadies it for
+// breathHoldSeconds and then it comes back.
+export const SCOPE = Object.freeze({
+  hipFov: 75,
+  overlayInFrac: 0.985,
+  overlayOutFrac: 0.95,
+  // Degrees of sway per unit of adsIdleAmount, peak to peak, at rest.
+  swayDegreesPerIdle: 0.011,
+  breathHoldSeconds: 5,
+  breathRecoverSeconds: 3,
+  breathHoldSwayScale: 0.08,
+  zoomSound: 'fly_scope_zoom',
+});
 
 /** Weapons of one class, in card order. */
 export function weaponsOfClass(classId, table = WEAPONS) {

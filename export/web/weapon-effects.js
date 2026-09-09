@@ -115,9 +115,17 @@ export class GunAudio {
       fnp45: './audio/wpn_fnp45_fire_plr.wav',
       kard: './audio/wpn_kard_shot_plr.wav',
       beretta93r: './audio/wpn_beretta_fire_plr.wav',
+      // Sniper rifles: their own reports over the sniper decay pair.
+      dsr50: './audio/wpn_dsr_fire_plr.wav',
+      ballista: './audio/wpn_ballista_fire_plr.wav',
+      svu: './audio/wpn_svt_fire_plr.wav',
+      as50: './audio/wpn_as50_fire_plr.wav',
     },
     pistolExteriorDecayUrl = './audio/wpn_pistol_decay_ext.wav',
     pistolInteriorDecayUrl = './audio/wpn_pistol_decay_int.wav',
+    sniperExteriorDecayUrl = './audio/wpn_sniper_decay_ext.wav',
+    sniperInteriorDecayUrl = './audio/wpn_rifle_decay_int.wav',
+    sniperLfeUrl = './audio/wpn_dsr_fire_lfe.wav',
     exteriorDecayUrl = './audio/wpn_assault_decay_ext.wav',
     interiorDecayUrl = './audio/wpn_assault_decay_int.wav',
     lfeUrl = './audio/wpn_mp7_fire_lfe.wav',
@@ -143,16 +151,26 @@ export class GunAudio {
       interiorDecay: interiorDecayUrl,
       pistolExteriorDecay: pistolExteriorDecayUrl,
       pistolInteriorDecay: pistolInteriorDecayUrl,
+      sniperExteriorDecay: sniperExteriorDecayUrl,
+      sniperInteriorDecay: sniperInteriorDecayUrl,
+      sniperLfe: sniperLfeUrl,
       lfe: lfeUrl,
     };
-    // Weapons whose report decays with the pistol tail rather than the rifle's.
+    // Weapons whose report decays with the pistol or sniper tail rather than the rifle's.
     this.pistols = new Set(['fiveseven', 'fnp45', 'kard', 'beretta93r']);
+    this.snipers = new Set(['dsr50', 'ballista', 'svu', 'as50']);
   }
 
   decayLayer(weapon, indoors) {
-    const pistol = this.pistols.has(weapon);
-    const key = `${pistol ? 'pistol' : ''}${indoors ? (pistol ? 'InteriorDecay' : 'interiorDecay') : (pistol ? 'ExteriorDecay' : 'exteriorDecay')}`;
+    const family = this.pistols.has(weapon) ? 'pistol' : this.snipers.has(weapon) ? 'sniper' : '';
+    const key = family
+      ? `${family}${indoors ? 'InteriorDecay' : 'ExteriorDecay'}`
+      : (indoors ? 'interiorDecay' : 'exteriorDecay');
     return this.buffers[key] ? key : (indoors ? 'interiorDecay' : 'exteriorDecay');
+  }
+
+  lfeLayer(weapon) {
+    return this.snipers.has(weapon) && this.buffers.sniperLfe ? 'sniperLfe' : 'lfe';
   }
 
   // Falls back to the shared report rather than going silent, so a weapon added
@@ -415,8 +433,8 @@ export class GunAudio {
     }
 
     this.playLayer(this.shotLayer(weapon), 1, 3);
-    this.playLayer('lfe', this.pistols.has(weapon) ? 0.3 : 0.45, 8);
-    this.playLayer(this.decayLayer(weapon, indoors), 0.32, 3);
+    this.playLayer(this.lfeLayer(weapon), this.pistols.has(weapon) ? 0.3 : this.snipers.has(weapon) ? 0.6 : 0.45, 8);
+    this.playLayer(this.decayLayer(weapon, indoors), this.snipers.has(weapon) ? 0.4 : 0.32, 3);
     this.duckAmbience();
   }
 
