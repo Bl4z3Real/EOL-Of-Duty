@@ -330,6 +330,19 @@
   #blocker[data-screen="class"] .fe-wordmark { font-size: clamp(20px, 3vw, 30px); }
   #blocker[data-screen="class"] .fe-wordmark::after { margin-top: 14px; }
   #blocker[data-screen="class"] .fe-sub { display: none; }
+  /* Reserve space for the title and actions; only the desktop roster scrolls. */
+  body:not(.touch-mode) #blocker[data-screen="class"] .fe-content { max-height: 100%; }
+  body:not(.touch-mode) #blocker[data-screen="class"] .fe-content > header { flex-shrink: 0; }
+  body:not(.touch-mode) .fe-class { width: 100%; min-height: 0; max-height: none; }
+  body:not(.touch-mode) .fe-class-head,
+  body:not(.touch-mode) .fe-class-tabs,
+  body:not(.touch-mode) .fe-class-actions { flex-shrink: 0; }
+  body:not(.touch-mode) .fe-class-tabs { flex-wrap: wrap; }
+  body:not(.touch-mode) .fe-class-tab { min-width: 0; flex: 1 1 120px; }
+  body:not(.touch-mode) .fe-class-grid {
+    overflow-y: auto; overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: #7fffc480 #07121ab8;
+  }
   #blocker[data-screen="error"] .fe-message { display: block; }
   #blocker[data-screen="error"] .fe-wordmark::after { background: #ff6a5c; }
 
