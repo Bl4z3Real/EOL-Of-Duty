@@ -9,7 +9,7 @@ import { runSniperTest } from './sniper-game.mjs';
 import { runGraphicsTest } from './graphics-game.mjs';
 
 const root = process.cwd();
-const webRoot = path.resolve(root, 'export', 'web');
+const webRoot = path.resolve(root, process.env.AI_GAME_WEB_ROOT ?? 'export/web');
 const artifactRoot = path.resolve(root, process.env.AI_GAME_ARTIFACT_DIR ??
   (process.argv[2] === 'mobile-test' ? 'artifacts/ai-mobile' : process.argv[2] === 'graphics-test' ? 'artifacts/ai-graphics' : 'artifacts/ai-game'));
 const command = process.argv[2] ?? 'help';
@@ -63,6 +63,7 @@ Environment:
   AI_GAME_MOBILE=1             Use a high-density touch viewport (also for record)
   AI_GAME_ANGLE=d3d11          Use the Windows GPU instead of default SwiftShader
   AI_GAME_ARTIFACT_DIR=<path>  Override artifacts/ai-game
+  AI_GAME_WEB_ROOT=<path>      Serve a staged build instead of export/web
   AI_GAME_MAP=<id>             Load a map from export/web/maps.js (default mp_hijacked)
   BROWSER_PATH=<path>          Override Chrome or Edge executable
   BROWSER_TEST_URL=<url>       Use an already-running game server

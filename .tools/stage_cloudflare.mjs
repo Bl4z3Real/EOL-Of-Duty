@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { DEFAULT_MAP, MAPS, mapIntermediateFiles, mapRecommendedFiles, mapRequiredFiles } from '../export/web/maps.js';
+import { fitCloudflareAssets } from './split_glb.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = path.join(root, 'export', 'web');
@@ -59,4 +60,7 @@ for (const map of maps.filter((candidate) => candidate.baked)) {
 await mkdir(path.dirname(destination), { recursive: true });
 await rm(destination, { recursive: true, force: true });
 await cp(source, destination, { recursive: true, filter: include });
+for (const result of await fitCloudflareAssets(destination)) {
+  console.log(`Split ${result.file}: ${result.files.map(file => `${file.name} (${(file.bytes / 1024 / 1024).toFixed(2)} MiB)`).join(', ')}`);
+}
 console.log(`Staged Cloudflare Pages assets in ${path.relative(root, destination)}`);

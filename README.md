@@ -148,8 +148,11 @@ public totals. `wrangler.jsonc` is the source of truth for those bindings.
 
 Cloudflare cannot upload the bake inputs that live beside the runtime export:
 some are unused and one exceeds Pages' per-file limit. The staging command
-copies only the same runtime package Netlify publishes, without deleting files
-from the working tree:
+copies the runtime package without deleting files from the working tree.
+Oversized GLBs are repacked into a small GLB entry point and external binary
+buffers, each at most 25 MiB. Geometry and compressed textures are preserved
+byte-for-byte, and the existing loader follows the buffer URIs. Staging rejects
+any other oversized asset before upload:
 
 ```powershell
 npm run cloudflare:stage
@@ -159,7 +162,9 @@ npm run cloudflare:dev
 Apply `migrations/0001_play_counter.sql` to both D1 databases once, then deploy
 the staged package with `npm run cloudflare:deploy`. Branch deployments select
 the preview database through `CF_PAGES_BRANCH`; only `main` uses the production
-counter.
+counter. To exercise the exact staged package locally, set
+`AI_GAME_WEB_ROOT=.work/cloudflare-pages` and run `npm run ai:test`; set
+`AI_GAME_MAP=mp_nuketown_2020` to check Nuketown.
 
 `players` counts browsers that have started a match, `plays` counts sessions
 that have. The split is deliberate: `players` is the honest answer to "how many
