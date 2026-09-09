@@ -191,7 +191,10 @@ test('material classes make chrome metallic and leave dielectrics alone', async 
 
   // Anything unrecognised is left exactly as the exporter set it.
   assert.equal(classifyMaterial('mlv/fiberglass_boat_white'), null);
-  assert.equal(classifyMaterial('wpc/water_ocean_mp_hijacked'), null);
+  // Water is the one exception: it reflects the sky and gets its own motion.
+  assert.equal(classifyMaterial('wpc/water_ocean_mp_hijacked').roughness, 0.08);
+  assert.equal(classifyMaterial('wpc/mtl_water_karma_pool').metalness, 0.02);
+  assert.equal(classifyMaterial('p6_water_pipe_01:mc/mtl_p6_water_pipes'), null, 'a water pipe is not water');
   assert.equal(classifyMaterial(''), null);
   assert.equal(classifyMaterial(undefined), null);
 });
@@ -229,4 +232,24 @@ test('encodePng writes a decodable image with the expected pixels', () => {
     const row = raw.subarray(y * (w * 3 + 1) + 1, (y + 1) * (w * 3 + 1));
     assert.deepEqual([...row], [...rgb.subarray(y * w * 3, (y + 1) * w * 3)]);
   }
+});
+
+test('water materials take the animated surface once and share a clock', async () => {
+  const { animateWater, WATER_MATERIAL_PATTERN } = await import('../export/web/lighting.js');
+  const THREE = await import('three');
+  const ocean = new THREE.MeshStandardMaterial({ name: 'wpc/water_ocean_mp_hijacked' });
+  const pool = new THREE.MeshStandardMaterial({ name: 'wpc/mtl_water_karma_pool' });
+  const deck = new THREE.MeshStandardMaterial({ name: 'wpc/wood_teak_decking' });
+  const root = new THREE.Group();
+  root.add(new THREE.Mesh(new THREE.BufferGeometry(), ocean), new THREE.Mesh(new THREE.BufferGeometry(), [pool, deck]));
+
+  const clock = animateWater(root);
+  assert.equal(typeof ocean.onBeforeCompile, 'function');
+  assert.equal(typeof pool.onBeforeCompile, 'function');
+  assert.ok(pool.transparent, 'the pool has no colour map in the source and gets a tinted water colour');
+  assert.equal(deck.userData.water, undefined);
+  assert.equal(ocean.userData.waterTime, clock);
+  assert.equal(pool.userData.waterTime, clock, 'every water surface follows one clock');
+  assert.ok(WATER_MATERIAL_PATTERN.test('mlv/p6_hijacked_hot_tub:mlv/jun_ter_water_caustics'));
+  assert.ok(!WATER_MATERIAL_PATTERN.test('trash_bottle_water2_sixpack'));
 });

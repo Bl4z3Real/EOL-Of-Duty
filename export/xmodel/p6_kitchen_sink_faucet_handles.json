@@ -14,19 +14,19 @@
     "lods": [
         {
             "distance": 750.0,
-            "file": "model_export/p6_kitchen_sink_faucet_handles_lod0.glb"
+            "file": "model_export/p6_kitchen_sink_faucet_handles_lod0.obj"
         },
         {
             "distance": 1500.0,
-            "file": "model_export/p6_kitchen_sink_faucet_handles_lod1.glb"
+            "file": "model_export/p6_kitchen_sink_faucet_handles_lod1.obj"
         },
         {
             "distance": 2000.0,
-            "file": "model_export/p6_kitchen_sink_faucet_handles_lod2.glb"
+            "file": "model_export/p6_kitchen_sink_faucet_handles_lod2.obj"
         },
         {
             "distance": 2500.0,
-            "file": "model_export/p6_kitchen_sink_faucet_handles_lod3.glb"
+            "file": "model_export/p6_kitchen_sink_faucet_handles_lod3.obj"
         }
     ],
     "rootBoneName": "p6_kitchen_sink_faucet_handels_lod0",

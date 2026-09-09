@@ -5,10 +5,15 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { chromium } from 'playwright-core';
 
+// BROWSER_PATH overrides the search, as it does for .tools/ai-game.mjs.
 const browserPath = [
+  process.env.BROWSER_PATH,
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
   'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-].find((candidate) => fs.existsSync(candidate));
+  '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+  '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+  '/usr/bin/google-chrome',
+].filter(Boolean).find((candidate) => fs.existsSync(candidate));
 // The page defers its ~40 MB load until a real visitor moves a pointer or
 // presses a key (see the boot gate in index.html). These harnesses drive the
 // page through `globalThis.hijacked` without ever generating input, so they ask
@@ -81,8 +86,12 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
       barWidth: document.getElementById('fe-bar').style.width,
     }));
     assert.equal(menu.screen, 'title', 'a finished load lands on the title screen');
-    assert.deepEqual(menu.state,
-      { screen: 'title', visible: true, percent: 100, caption: '', selectedWeapon: 'm27' });
+    assert.deepEqual(menu.state, {
+      screen: 'title', visible: true, percent: 100, caption: '', selectedWeapon: 'm27',
+      activeClass: 'primary',
+      // The default class: the M27, the Five-seven, a frag and a smoke.
+      loadout: { primary: 'm27', secondary: 'fiveseven', lethal: 'frag', tactical: 'smoke' },
+    });
     assert.match(menu.backdrop, /menu_mp_background_main2\.png/, 'the frontend backdrop should be the extracted plate');
     assert.equal(menu.cardLoaded, 256, 'the Hijacked map card should decode at its authored width');
     assert.equal(menu.barWidth, '100%', 'a finished load fills the bar');
@@ -143,8 +152,9 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
     assert.equal(an94.selected, 'an94');
     assert.equal(an94.state.id, 'an94');
     assert.equal(an94.state.name, 'AN-94');
+    // The nine rifles and the four pistols, in registry order.
     assert.deepEqual(an94.state.availableWeapons,
-      ['m27', 'an94', 'sa58', 'saritch', 'scar', 'sig556', 'tar21', 'type95', 'xm8']);
+      ['m27', 'an94', 'sa58', 'saritch', 'scar', 'sig556', 'tar21', 'type95', 'xm8', 'fiveseven', 'fnp45', 'kard', 'beretta93r']);
     assert.equal(an94.ready, true, 'AN-94 viewmodel should be loaded');
     assert.equal(an94.visible, true, 'AN-94 viewmodel should be visible after selection');
     assert.equal(an94.hasIntroFire, true, 'AN-94 should load its hyperburst intro animation');
@@ -194,14 +204,17 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
       return {
         screen: state.menu.screen,
         selectedWeapon: state.menu.selectedWeapon,
-        cards: [...document.querySelectorAll('.fe-class-card')].map((card) => ({
+        // The class screen opens on the Primary tab; the other tabs' cards are hidden.
+        cards: [...document.querySelectorAll('.fe-class-card')].filter((card) => !card.hidden).map((card) => ({
           id: card.dataset.weaponId,
           ready: card.dataset.ready,
-          art: card.querySelector('[data-card-art]')?.naturalWidth ?? 0,
-          name: card.querySelector('[data-card-name]')?.textContent,
-          rpm: card.querySelector('[data-card-rpm]')?.textContent,
-          fireType: card.querySelector('[data-card-fire-type]')?.src ?? '',
+          art: card.querySelector('.fe-class-art img')?.naturalWidth ?? 0,
+          name: card.querySelector('.fe-class-name')?.textContent,
+          rpm: card.querySelector('.fe-class-stat b')?.textContent,
+          fireType: card.querySelector('.fe-class-fire')?.src ?? '',
         })),
+        tabs: [...document.querySelectorAll('.fe-class-tab')].map((tab) => tab.dataset.weaponClass),
+        activeClass: state.menu.activeClass,
       };
     });
     await page.screenshot({ path: path.join(os.tmpdir(), 'hijacked-class-title.png') });
@@ -209,6 +222,8 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
     assert.equal(classFromTitle.selectedWeapon, 'm27');
     assert.deepEqual(classFromTitle.cards.map((card) => card.id),
       ['m27', 'an94', 'sa58', 'saritch', 'scar', 'sig556', 'tar21', 'type95', 'xm8']);
+    assert.deepEqual(classFromTitle.tabs, ['primary', 'secondary', 'lethal', 'tactical'], 'create-a-class is tabbed like the game');
+    assert.equal(classFromTitle.activeClass, 'primary');
     assert.ok(classFromTitle.cards.every((card) => card.ready === 'true'),
       `every loaded card should be ready: ${JSON.stringify(classFromTitle.cards)}`);
     assert.ok(classFromTitle.cards.every((card) => card.art > 0), 'authentic weapon card art should decode');
@@ -245,6 +260,7 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
     await page.evaluate(() => globalThis.hijacked.frontend.enter());
 
     const weaponIds = ['m27', 'an94', 'sa58', 'saritch', 'scar', 'sig556', 'tar21', 'type95', 'xm8'];
+    const pistolIds = ['fiveseven', 'fnp45', 'kard', 'beretta93r'];
     const rifleLoads = await page.evaluate(async (ids) => {
       const api = globalThis.hijacked;
       const waitFrames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -329,7 +345,32 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
       `the sig556 should end on the seated magazine alone: ${JSON.stringify(magazines)}`);
     await page.evaluate(() => globalThis.hijacked.debug.selectWeapon('m27'));
 
-    assert.deepEqual((await page.evaluate(() => globalThis.hijacked.debug.getState().weapon.availableWeapons)), weaponIds);
+    assert.deepEqual((await page.evaluate(() => globalThis.hijacked.debug.getState().weapon.availableWeapons)), [...weaponIds, ...pistolIds]);
+    // The secondaries: each pistol loads its own rig, whips with its own melee
+    // clip, and the wheel walks between the class's two guns.
+    const pistolLoads = await page.evaluate(async (ids) => {
+      const api = globalThis.hijacked;
+      const waitFrames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      const result = [];
+      for (const id of ids) {
+        const selected = api.debug.selectWeapon(id);
+        await waitFrames();
+        const state = api.debug.getState();
+        result.push({
+          id, selected, active: state.weapon.id, cls: state.weapon.class, fireMode: state.weapon.fireMode,
+          ready: api.viewmodel.ready, hasMelee: Boolean(api.viewmodel.meleeAction), hasMuzzle: Boolean(api.viewmodel.root.getObjectByName('tag_flash')),
+          secondary: state.loadout.secondary,
+        });
+      }
+      const wheel = [api.debug.switchWeapon(1), api.debug.getState().weapon.id, api.debug.switchWeapon(1), api.debug.getState().weapon.id];
+      return { result, wheel };
+    }, pistolIds);
+    assert.deepEqual(pistolLoads.result.map((p) => p.selected), pistolIds);
+    assert.ok(pistolLoads.result.every((p) => p.active === p.id && p.ready && p.cls === 'secondary' && p.hasMelee && p.hasMuzzle && p.secondary === p.id),
+      `every pistol should load into the secondary slot: ${JSON.stringify(pistolLoads.result)}`);
+    assert.deepEqual(pistolLoads.result.map((p) => p.fireMode), ['single', 'single', 'auto', 'burst']);
+    assert.deepEqual(pistolLoads.wheel, ['m27', 'm27', 'beretta93r', 'beretta93r'], 'the wheel moves between the primary and the last picked secondary');
+    await page.evaluate(() => globalThis.hijacked.debug.selectWeapon('m27'));
     assert.equal(await page.evaluate(() => globalThis.hijacked.debug.selectWeapon('hk416')), 'm27',
       'the source hk416 id should remain an alias for the player-facing M27 slot');
     assert.equal(await page.evaluate(() => globalThis.hijacked.debug.selectWeapon('m27')), 'm27');
@@ -408,11 +449,12 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
         sharedRunGeometry: (() => {
           const [first, second] = api.enemies?.enemies ?? [];
           if (!first || !second) return false;
-          let firstMesh = null;
-          let secondMesh = null;
-          first.visualFrames.run[0].body.traverse((object) => { if (!firstMesh && object.isMesh) firstMesh = object; });
-          second.visualFrames.run[0].body.traverse((object) => { if (!secondMesh && object.isMesh) secondMesh = object; });
-          return firstMesh?.geometry === secondMesh?.geometry;
+          // The body is what is shared; each bot's rifle (enemy_weapon_combined,
+          // hanging off the wrist) is its own baked model.
+          const bodyMesh = (frame) => frame.body.children.find((child) => child.name === 'enemy_body_combined');
+          const firstMesh = bodyMesh(first.visualFrames.run[0]);
+          const secondMesh = bodyMesh(second.visualFrames.run[0]);
+          return Boolean(firstMesh) && firstMesh.geometry === secondMesh?.geometry;
         })(),
         renderPixelRatio: api.renderer.getPixelRatio(),
         renderPixels: api.renderer.getContext().drawingBufferWidth *
@@ -454,7 +496,11 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
       `enemy trigger grips should remain in the right hands across poses: ${weaponGripErrors}`);
     const weaponForwardDots = enemySetup.weaponPoseSamples.flatMap(({ idle, run }) =>
       [idle, ...run].map(({ forwardDot }) => forwardDot));
-    assert.ok(weaponForwardDots.every((dot) => dot > 0.96),
+    // Measured from the socket to the muzzle tag, so the figure depends on
+    // where each rifle's world model puts its tag_weapon under the bore: with
+    // the bots now carrying the whole roster the run-cycle bob takes the
+    // shortest of those vectors to about 0.955. Idle stances sit above 0.99.
+    assert.ok(weaponForwardDots.every((dot) => dot > 0.95),
       `enemy weapon barrels should face with their actors in living stances: ${weaponForwardDots}`);
     assert.ok(enemySetup.animatedBodies.every(({ changed, changedFrame }) => changedFrame && changed > 0.0001),
       `enemy run clips should animate their skeletons: ${JSON.stringify(enemySetup.animatedBodies)}`);
@@ -654,10 +700,12 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
       };
     });
     assert.equal(enemyDamage.region, 'head', 'enemy hitboxes should report which zone was struck');
-    assert.equal(enemyDamage.damage, 68, 'head hitbox should double damage');
+    // The hitboxes carry regions only; the shooter's weapon file supplies the
+    // locational multiplier (see fireShot in index.html), so a plain 34 lands as 34.
+    assert.equal(enemyDamage.damage, 34, 'a head hit with no weapon multiplier applies the base damage');
     assert.equal(enemyDamage.killed, false, 'one headshot should not kill a full-health enemy');
     assert.equal(enemyDamage.missed, null, 'a hit on nothing should report no damage');
-    assert.equal(enemyDamage.before - enemyDamage.after, 68, 'head hitbox should double damage');
+    assert.equal(enemyDamage.before - enemyDamage.after, 34);
     assert.equal(enemyDamage.state, 'chase', 'a surviving hit should alert the enemy');
     assert.ok(enemyDamage.suppressionTimer > 0, 'a hit should temporarily reduce enemy accuracy');
 
@@ -683,16 +731,25 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
       const match = api.debug.getState().match;
       const shooterScore = match.standings.find((entry) => entry.id === `bot-${shooter.index}`);
       const victimScore = match.standings.find((entry) => entry.id === `bot-${victim.index}`);
+      // Each bot carries its own rifle, so the rounds to a kill follow that
+      // rifle's damage at this range (140 units, inside every full-damage band).
+      const expectedShots = Math.ceil(victim.maxHealth / api.enemies.damageFor(shooter, 140));
       api.debug.restartMatch();
       return {
         hitActor: shot.hitActor,
         shots,
+        expectedShots,
+        weapon: shooter.weaponId,
         shooterKills: shooterScore.kills,
         victimDeaths: victimScore.deaths,
       };
     });
-    assert.deepEqual(ffaCombat, { hitActor: 'bot-1', shots: 5, shooterKills: 1, victimDeaths: 1 },
-      'bots should damage, kill, and score against other bots in free-for-all');
+    assert.deepEqual(
+      { hitActor: ffaCombat.hitActor, shots: ffaCombat.shots, shooterKills: ffaCombat.shooterKills, victimDeaths: ffaCombat.victimDeaths },
+      { hitActor: 'bot-1', shots: ffaCombat.expectedShots, shooterKills: 1, victimDeaths: 1 },
+      `bots should damage, kill, and score against other bots in free-for-all (${ffaCombat.weapon})`,
+    );
+    assert.ok(ffaCombat.shots >= 3 && ffaCombat.shots <= 5, `a bot rifle should need three to five rounds up close: ${JSON.stringify(ffaCombat)}`);
 
     const combatFeedback = await page.evaluate(() => {
       const api = globalThis.hijacked;
@@ -793,7 +850,8 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
     // `shot` stays the shared fallback enemy reports use; each rifle also loads
     // its own recorded report under `shot:<id>`.
     assert.deepEqual(audio.layers,
-      ['exteriorDecay', 'interiorDecay', 'lfe', 'shot', 'shot:an94', 'shot:hk416', 'shot:m27',
+      ['exteriorDecay', 'interiorDecay', 'lfe', 'pistolExteriorDecay', 'pistolInteriorDecay', 'shot', 'shot:an94',
+        'shot:beretta93r', 'shot:fiveseven', 'shot:fnp45', 'shot:hk416', 'shot:kard', 'shot:m27',
         'shot:sa58', 'shot:saritch', 'shot:scar', 'shot:sig556', 'shot:tar21', 'shot:type95', 'shot:xm8']);
     assert.ok(audio.durations.shot > 1.1 && audio.durations.shot < 1.2);
     assert.equal(audio.durations['shot:m27'], audio.durations.shot,

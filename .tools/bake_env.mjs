@@ -1,18 +1,24 @@
 #!/usr/bin/env node
-// Convert the map's own lighting assets into things the web viewer can load:
+// Convert the map's own lighting assets into things the web viewer can load.
+// Output paths come from the map registry (export/web/maps.js); for Hijacked:
 //
 //   export/web/textures/env/{px,nx,py,ny,pz,nz}.png   sky cubemap, glTF axes
 //   export/web/textures/probe/{...}.png               reflection probe cubemap
 //   export/web/textures/mp_hijacked_lut.png           vision-set colour grade
 //   export/web/vision.json                            parsed .vision constants
 //
+//   npm run bake:env -- --map mp_nuketown_2020 [--images export/images_nuketown]
+//
+// Every map's dump names its reflection probe _reflection_probe1.dds, so a
+// second map's images need their own folder, hence --images.
+//
 // The DDS files are BC3 cubemaps in the engine's z-up space. Rather than guess
 // per-face flips, every output texel is resampled: take the glTF direction for
 // the texel, rotate it back into engine space with the inverse of compose's
 // (x, z, -y) swap, then sample whichever engine face that direction lands on.
 //
-// texconv.exe does the BC3 -> RGBA8 decompression (it will not split cube faces
-// itself, which is why the resample lives here).
+// DXT1/DXT5 (BC1/BC3) and uncompressed RGBA cubemaps are decoded here; any
+// other DDS format falls back to texconv.exe when it is present in .tools/.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -20,9 +26,10 @@ import zlib from 'node:zlib';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
+import { DEFAULT_MAP, MAP_IDS, findMap } from '../export/web/maps.js';
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const IMAGES = path.join(ROOT, 'export', 'images');
-const OUT = path.join(ROOT, 'export', 'web', 'textures');
+const WEB = path.join(ROOT, 'export', 'web');
 const TEXCONV = path.join(ROOT, '.tools', 'texconv.exe');
 const TMP = path.join(ROOT, '.tools', '.env_tmp');
 
@@ -80,8 +87,104 @@ export function encodePng(rgb, w, h) {
 
 // ------------------------------- DDS input --------------------------------
 
-// Decompress to RGBA8 via texconv, then read the flat face array.
+const DDS_HEADER = 128;
+const DDPF_FOURCC = 0x4;
+const DDSCAPS2_CUBEMAP = 0x200;
+
+function rgb565(value) {
+  return [((value >> 11) & 31) * 255 / 31, ((value >> 5) & 63) * 255 / 63, (value & 31) * 255 / 31];
+}
+
+// One 4x4 block of BC1 (DXT1) or BC3 (DXT5) into an RGBA8 image.
+function decodeBlock(data, p, fourcc, out, w, h, bx, by) {
+  let alpha = null;
+  if (fourcc === 'DXT5') {
+    const a0 = data[p];
+    const a1 = data[p + 1];
+    const table = a0 > a1
+      ? [a0, a1, (6 * a0 + a1) / 7, (5 * a0 + 2 * a1) / 7, (4 * a0 + 3 * a1) / 7, (3 * a0 + 4 * a1) / 7, (2 * a0 + 5 * a1) / 7, (a0 + 6 * a1) / 7]
+      : [a0, a1, (4 * a0 + a1) / 5, (3 * a0 + 2 * a1) / 5, (2 * a0 + 3 * a1) / 5, (a0 + 4 * a1) / 5, 0, 255];
+    // 16 three-bit indices packed little-endian across six bytes.
+    let bits = 0n;
+    for (let i = 5; i >= 0; i--) bits = (bits << 8n) | BigInt(data[p + 2 + i]);
+    alpha = new Array(16);
+    for (let i = 0; i < 16; i++) alpha[i] = table[Number((bits >> BigInt(i * 3)) & 7n)];
+    p += 8;
+  }
+  const c0 = data.readUInt16LE(p);
+  const c1 = data.readUInt16LE(p + 2);
+  const idx = data.readUInt32LE(p + 4);
+  const [r0, g0, b0] = rgb565(c0);
+  const [r1, g1, b1] = rgb565(c1);
+  const palette = fourcc === 'DXT1' && c0 <= c1
+    ? [[r0, g0, b0, 255], [r1, g1, b1, 255], [(r0 + r1) / 2, (g0 + g1) / 2, (b0 + b1) / 2, 255], [0, 0, 0, 0]]
+    : [[r0, g0, b0, 255], [r1, g1, b1, 255], [(2 * r0 + r1) / 3, (2 * g0 + g1) / 3, (2 * b0 + b1) / 3, 255], [(r0 + 2 * r1) / 3, (g0 + 2 * g1) / 3, (b0 + 2 * b1) / 3, 255]];
+  for (let i = 0; i < 16; i++) {
+    const x = bx * 4 + (i & 3);
+    const y = by * 4 + (i >> 2);
+    if (x >= w || y >= h) continue;
+    const color = palette[(idx >> (i * 2)) & 3];
+    const o = (y * w + x) * 4;
+    out[o] = color[0];
+    out[o + 1] = color[1];
+    out[o + 2] = color[2];
+    out[o + 3] = alpha ? alpha[i] : color[3];
+  }
+}
+
+function decodeBc(data, offset, w, h, fourcc) {
+  const out = Buffer.alloc(w * h * 4);
+  const blockBytes = fourcc === 'DXT1' ? 8 : 16;
+  const bw = Math.ceil(w / 4);
+  const bh = Math.ceil(h / 4);
+  for (let by = 0; by < bh; by++) {
+    for (let bx = 0; bx < bw; bx++) decodeBlock(data, offset + (by * bw + bx) * blockBytes, fourcc, out, w, h, bx, by);
+  }
+  return out;
+}
+
+function mipBytes(w, h, fourcc) {
+  if (fourcc === 'DXT1') return Math.max(1, Math.ceil(w / 4)) * Math.max(1, Math.ceil(h / 4)) * 8;
+  if (fourcc === 'DXT5') return Math.max(1, Math.ceil(w / 4)) * Math.max(1, Math.ceil(h / 4)) * 16;
+  return w * h * 4;
+}
+
+// Decode the top mip of every face into one flat RGBA8 array. Faces are
+// stored face-major in DDS, each with its full mip chain.
 function readCubeRGBA(ddsPath) {
+  const file = fs.readFileSync(ddsPath);
+  const h = file.readUInt32LE(12);
+  const w = file.readUInt32LE(16);
+  const mips = Math.max(1, file.readUInt32LE(28));
+  const pfFlags = file.readUInt32LE(80);
+  const fourcc = pfFlags & DDPF_FOURCC ? file.toString('latin1', 84, 88) : 'RGBA';
+  const faces = file.readUInt32LE(112) & DDSCAPS2_CUBEMAP ? 6 : 1;
+  if (fourcc !== 'DXT1' && fourcc !== 'DXT5' && fourcc !== 'RGBA') return readCubeRGBAWithTexconv(ddsPath);
+  if (fourcc === 'RGBA' && file.readUInt32LE(88) !== 32) return readCubeRGBAWithTexconv(ddsPath);
+  const bgra = fourcc === 'RGBA' && file.readUInt32LE(92) === 0x00ff0000;
+
+  let faceStride = 0;
+  for (let level = 0, mw = w, mh = h; level < mips; level++, mw = Math.max(1, mw >> 1), mh = Math.max(1, mh >> 1)) faceStride += mipBytes(mw, mh, fourcc);
+  const faceBytes = w * h * 4;
+  const buf = Buffer.alloc(faceBytes * faces);
+  for (let f = 0; f < faces; f++) {
+    const src = DDS_HEADER + f * faceStride;
+    const decoded = fourcc === 'RGBA' ? file.subarray(src, src + faceBytes) : decodeBc(file, src, w, h, fourcc);
+    decoded.copy(buf, f * faceBytes);
+    if (bgra) {
+      for (let i = f * faceBytes; i < (f + 1) * faceBytes; i += 4) {
+        const b = buf[i];
+        buf[i] = buf[i + 2];
+        buf[i + 2] = b;
+      }
+    }
+  }
+  return { buf, w, h, faces, offset: 0, faceBytes };
+}
+
+// Other block formats: decompress to RGBA8 via texconv, then read the flat face array.
+function readCubeRGBAWithTexconv(ddsPath) {
+  if (!fs.existsSync(TEXCONV)) throw new Error(`${path.basename(ddsPath)} is not DXT1/DXT5/RGBA8 and .tools/texconv.exe is not available`);
   fs.mkdirSync(TMP, { recursive: true });
   execFileSync(TEXCONV, ['-y', '-ft', 'dds', '-f', 'R8G8B8A8_UNORM', '-m', '1', '-o', TMP, ddsPath], {
     stdio: 'pipe',
@@ -320,25 +423,50 @@ export function visionGrade(vision) {
 
 // --------------------------------- main -----------------------------------
 
+function parseArgs(argv) {
+  const args = { map: DEFAULT_MAP, images: path.join(ROOT, 'export', 'images'), sky: null };
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--map' || arg === '-m') args.map = argv[++i];
+    else if (arg === '--images') args.images = path.resolve(ROOT, argv[++i]);
+    // Stand-in sky (a DDS name without extension) while the real skybox is
+    // not exported; a reflection probe carries the sky in its upper half.
+    else if (arg === '--sky') args.sky = argv[++i];
+    else throw new Error(`unknown argument ${arg}; usage: bake_env.mjs [--map <${MAP_IDS.join('|')}>] [--images <dir>] [--sky <dds name>]`);
+  }
+  return args;
+}
+
 function run() {
-  fs.mkdirSync(OUT, { recursive: true });
+  const args = parseArgs(process.argv.slice(2));
+  const map = findMap(args.map);
+  if (!map) throw new Error(`unknown map ${args.map}; expected one of ${MAP_IDS.join(', ')}`);
+  const IMAGES = args.images;
+  const envDir = path.join(WEB, map.env);
+  const probeDir = path.join(WEB, map.probe);
+  // A map whose LUT is not exported yet has lut: null in the registry; the
+  // PNG still lands at the conventional name so the entry can be flipped.
+  const lutOut = path.join(WEB, map.lut ?? path.join('textures', `${map.id}_lut.png`));
+  const visionOut = path.join(WEB, map.vision);
+  fs.mkdirSync(path.dirname(lutOut), { recursive: true });
 
   // --- sky cubemap
-  const skyPath = path.join(IMAGES, 'skybox_mp_hijacked_ft.dds');
+  const skyName = args.sky ?? map.sources.sky;
+  const skyPath = path.join(IMAGES, `${skyName}.dds`);
   if (fs.existsSync(skyPath)) {
     const src = readCubeRGBA(skyPath);
-    console.log(`sky: ${src.w}x${src.h} x${src.faces} faces`);
+    console.log(`sky: ${skyName} ${src.w}x${src.h} x${src.faces} faces${args.sky ? ' (stand-in)' : ''}`);
     if (src.faces === 6) {
       const faces = resampleCube(src, src.w);
       let fixed = 0;
       for (const face of faces) fixed += repairHorizonSeam(face, src.w, src.w);
       const haze = applySkyHaze(faces, src.w);
-      writeCube(path.join(OUT, 'env'), faces, src.w);
-      console.log(`  -> textures/env/*.png (${src.w}px, glTF axes), ${fixed} seam rows repaired`);
+      writeCube(envDir, faces, src.w);
+      console.log(`  -> ${map.env}*.png (${src.w}px, glTF axes), ${fixed} seam rows repaired`);
       console.log(`     horizon haze rgb(${haze.join(', ')})`);
     }
   } else {
-    console.warn('sky: skybox_mp_hijacked_ft.dds not found');
+    console.warn(`sky: ${map.sources.sky}.dds not found in ${IMAGES}`);
   }
 
   // --- reflection probe. No positions survive the dump, so probe 1 (the first
@@ -348,13 +476,13 @@ function run() {
     const src = readCubeRGBA(probePath);
     console.log(`probe: ${src.w}x${src.h} x${src.faces} faces`);
     if (src.faces === 6) {
-      writeCube(path.join(OUT, 'probe'), resampleCube(src, src.w), src.w);
-      console.log(`  -> textures/probe/*.png (${src.w}px)`);
+      writeCube(probeDir, resampleCube(src, src.w), src.w);
+      console.log(`  -> ${map.probe}*.png (${src.w}px)`);
     }
   }
 
   // --- colour grading LUT
-  const lutPath = path.join(IMAGES, 'mp_hijacked_lut_win.dds');
+  const lutPath = path.join(IMAGES, `${map.sources.lut}.dds`);
   if (fs.existsSync(lutPath)) {
     const src = readCubeRGBA(lutPath);
     const px = Buffer.alloc(src.w * src.h * 3);
@@ -363,19 +491,16 @@ function run() {
       px[i * 3 + 1] = src.buf[src.offset + i * 4 + 1];
       px[i * 3 + 2] = src.buf[src.offset + i * 4 + 2];
     }
-    fs.writeFileSync(path.join(OUT, 'mp_hijacked_lut.png'), encodePng(px, src.w, src.h));
-    console.log(`lut: ${src.w}x${src.h} -> textures/mp_hijacked_lut.png`);
+    fs.writeFileSync(lutOut, encodePng(px, src.w, src.h));
+    console.log(`lut: ${src.w}x${src.h} -> ${map.lut}`);
   }
 
   // --- vision set
-  const visionPath = path.join(ROOT, 'export', 'vision', 'mp_hijacked.vision');
+  const visionPath = path.join(ROOT, 'export', 'vision', `${map.sources.vision}.vision`);
   if (fs.existsSync(visionPath)) {
     const vision = parseVision(fs.readFileSync(visionPath, 'utf8'));
     const grade = visionGrade(vision);
-    fs.writeFileSync(
-      path.join(ROOT, 'export', 'web', 'vision.json'),
-      JSON.stringify({ ...grade, raw: vision }, null, 2),
-    );
+    fs.writeFileSync(visionOut, JSON.stringify({ ...grade, raw: vision }, null, 2));
     console.log(`vision: exposure ${grade.exposure}, highlight ${grade.highlight.map((v) => v.toFixed(3))}`);
   }
 

@@ -1,0 +1,23 @@
+diff --git a/src/ObjWriting/Image/ImageToCommonConverter.cpp.template b/src/ObjWriting/Image/ImageToCommonConverter.cpp.template
+index c00784d..9e2dcbc 100644
+--- a/src/ObjWriting/Image/ImageToCommonConverter.cpp.template
++++ b/src/ObjWriting/Image/ImageToCommonConverter.cpp.template
+@@ -147,7 +147,18 @@ namespace
+         const auto filePathImage = searchPath.Open(imageFileName);
+         if (!filePathImage.IsOpen())
+         {
++#ifdef FEATURE_T6
++            con::error("Could not find data for image \"{}\" (streamedParts {}, hash {:08x}, part0 hash {:08x}, streaming {}, loadedSize {}, baseSize {})",
++                       image.name,
++                       static_cast<int>(image.streamedPartCount),
++                       image.hash,
++                       image.streamedPartCount > 0 ? image.streamedParts[0].hash : 0u,
++                       static_cast<int>(image.streaming),
++                       image.loadedSize,
++                       image.baseSize);
++#else
+             con::error("Could not find data for image \"{}\"", image.name);
++#endif
+             return nullptr;
+         }
+ 

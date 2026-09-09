@@ -2,19 +2,16 @@ import { cp, mkdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { DEFAULT_MAP, MAPS, mapIntermediateFiles, mapRecommendedFiles, mapRequiredFiles } from '../export/web/maps.js';
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = path.join(root, 'export', 'web');
 const destination = path.join(root, '.work', 'cloudflare-pages');
 
-const omittedRootFiles = new Set([
-  'hijacked.gltf',
-  'hijacked.bin',
-  'hijacked_geometry.glb',
-  'hijacked_collision.gltf',
-  'hijacked_collision.bin',
-  'hijacked_collision_source.json',
-]);
-const keptLooseTextures = new Set(['mp_hijacked_lut.png']);
+const maps = Object.values(MAPS);
+// Bake inputs and intermediates for every map, whether or not it is baked.
+const omittedRootFiles = new Set(maps.flatMap((map) => mapIntermediateFiles(map)));
+const keptLooseTextures = new Set(maps.map((map) => path.basename(map.lut)));
 
 function include(candidate) {
   const relative = path.relative(source, candidate);
@@ -30,16 +27,33 @@ function include(candidate) {
   return true;
 }
 
-for (const required of [
-  'hijacked_optimized.glb',
-  'hijacked_collision_bvh.bin',
-  'hijacked_collision_bvh.json',
-  'hijacked.navmesh.bin',
-  path.join('textures', 'env'),
-  path.join('textures', 'probe'),
-  path.join('textures', 'mp_hijacked_lut.png'),
-]) {
-  await stat(path.join(source, required));
+async function exists(relative) {
+  try {
+    await stat(path.join(source, relative));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// A map the registry calls baked must be complete, or its card would open
+// onto a load error. A map not yet marked baked may have files staged early;
+// that is only worth a note.
+for (const map of maps) {
+  const required = mapRequiredFiles(map);
+  const present = await Promise.all(required.map(exists));
+  if (present.every(Boolean)) {
+    if (!map.baked) console.warn(`${map.id} is fully baked but maps.js still has baked: false`);
+    continue;
+  }
+  const missing = required.filter((_, index) => !present[index]);
+  if (map.baked || map.id === DEFAULT_MAP) throw new Error(`${map.id} is missing ${missing.join(', ')}`);
+}
+for (const map of maps.filter((candidate) => candidate.baked)) {
+  const recommended = mapRecommendedFiles(map);
+  const present = await Promise.all(recommended.map(exists));
+  const missing = recommended.filter((_, index) => !present[index]);
+  if (missing.length) console.warn(`${map.id} ships without ${missing.join(', ')}`);
 }
 
 await mkdir(path.dirname(destination), { recursive: true });

@@ -14,15 +14,15 @@
     "lods": [
         {
             "distance": 1000.0,
-            "file": "model_export/p_glo_bomb_stack_d_lod0.glb"
+            "file": "model_export/p_glo_bomb_stack_d_lod0.obj"
         },
         {
             "distance": 3000.0,
-            "file": "model_export/p_glo_bomb_stack_d_lod1.glb"
+            "file": "model_export/p_glo_bomb_stack_d_lod1.obj"
         },
         {
             "distance": 6000.0,
-            "file": "model_export/p_glo_bomb_stack_d_lod2.glb"
+            "file": "model_export/p_glo_bomb_stack_d_lod2.obj"
         }
     ],
     "rootBoneName": "p_glo_bomb_stack_d_lod0",

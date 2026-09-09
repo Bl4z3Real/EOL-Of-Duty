@@ -39,7 +39,9 @@ export class FreeForAllMatch {
     if (this.elapsedSeconds >= this.timeLimitSeconds) this.finish();
   }
 
-  recordKill(killerId, victimId) {
+  // `detail` rides along on the feed event: the kill's range, for the long
+  // shot readout, or anything else the HUD wants to show beside the names.
+  recordKill(killerId, victimId, detail = null) {
     if (this.phase !== 'playing') return null;
     const killer = this.combatants.get(String(killerId));
     const victim = this.combatants.get(String(victimId));
@@ -58,6 +60,7 @@ export class FreeForAllMatch {
       victimId: victim.id,
       victim: victim.name,
       at: this.elapsedSeconds,
+      ...(detail && typeof detail === 'object' ? detail : {}),
     };
     this.feed.unshift(event);
     this.feed.length = Math.min(this.feed.length, this.feedLimit);

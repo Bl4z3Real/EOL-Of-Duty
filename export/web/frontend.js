@@ -31,12 +31,15 @@ export const SCREENS = ['loading', 'title', 'pause', 'class', 'error'];
 
 export class Frontend {
   constructor({
-    elements = null, onPlay = null, onResume = null, onSelectWeapon = null, onOpenClass = null,
+    elements = null, onPlay = null, onResume = null, onSelectWeapon = null, onSelectLoadout = null, onOpenClass = null,
   } = {}) {
     this.elements = elements;
     this.onPlay = onPlay;
     this.onResume = onResume;
     this.onSelectWeapon = onSelectWeapon;
+    // Fired with the whole {primary, secondary, ...} loadout on confirm; the
+    // per-weapon onSelectWeapon still fires for the primary, for older callers.
+    this.onSelectLoadout = onSelectLoadout;
     // Fired when the class screen opens so the game can fetch the rifles it
     // has not loaded yet. Only a player who browses classes pays for them.
     this.onOpenClass = onOpenClass;
@@ -51,7 +54,11 @@ export class Frontend {
     this.message = '';
     this.controls = [];
     this.weaponOptions = [];
-    this.selectedWeapon = null;
+    // Create-a-class is tabbed like the game's: one tab per weapon class and
+    // one selection per tab. `selectedWeapon` stays the primary's id.
+    this.classes = [{ id: 'primary', label: 'Primary', hint: '' }];
+    this.activeClass = 'primary';
+    this.loadout = {};
     this.classReturnScreen = 'title';
 
     this.bindElements();
@@ -204,23 +211,65 @@ export class Frontend {
     this.render();
   }
 
-  /** Supply the compact card data used by the class screen. */
-  setWeapons(weapons = [], selectedId = null) {
+  /** The tabs the class screen shows, in order. */
+  setClasses(classes = []) {
+    const list = (classes ?? []).map((cls) => (typeof cls === 'string' ? { id: cls } : cls ?? {}))
+      .filter((cls) => cls.id)
+      .map((cls) => ({ id: String(cls.id), label: cls.label ?? cls.id, hint: cls.hint ?? '' }));
+    this.classes = list.length ? list : [{ id: 'primary', label: 'Primary', hint: '' }];
+    if (!this.classes.some((cls) => cls.id === this.activeClass)) this.activeClass = this.classes[0].id;
+    this.render();
+    return this.classes.map((cls) => cls.id);
+  }
+
+  /** Show one tab; the cards of the other classes hide. */
+  showClassTab(classId) {
+    const cls = this.classes.find((entry) => entry.id === String(classId));
+    if (!cls) return false;
+    this.activeClass = cls.id;
+    this.render();
+    return this.activeClass;
+  }
+
+  /** The primary's id, for callers that predate the tabs. */
+  get selectedWeapon() {
+    return this.loadout.primary ?? null;
+  }
+
+  set selectedWeapon(id) {
+    this.loadout.primary = id ?? null;
+  }
+
+  /**
+   * Supply the compact card data used by the class screen. Each option names
+   * its class (default primary); `selected` may be one id (the primary) or a
+   * whole loadout object keyed by class.
+   */
+  setWeapons(weapons = [], selected = null) {
     this.weaponOptions = (weapons ?? []).map((weapon) => {
       const entry = typeof weapon === 'string' ? { id: weapon } : weapon ?? {};
       return {
         ...entry,
         id: String(entry.id ?? '').toLowerCase(),
+        class: String(entry.class ?? 'primary'),
         ready: entry.ready !== false,
       };
     }).filter((weapon) => weapon.id);
 
-    const requested = selectedId == null ? this.selectedWeapon : String(selectedId).toLowerCase();
-    const selected = this.weaponOptions.find((weapon) => weapon.id === requested)
-      ?? this.weaponOptions[0];
-    this.selectedWeapon = selected?.id ?? null;
+    const requested = selected && typeof selected === 'object'
+      ? selected
+      : { ...this.loadout, ...(selected == null ? {} : { primary: String(selected).toLowerCase() }) };
+    const classIds = new Set([...this.classes.map((cls) => cls.id), ...this.weaponOptions.map((weapon) => weapon.class)]);
+    const loadout = {};
+    for (const classId of classIds) {
+      const options = this.weaponOptions.filter((weapon) => weapon.class === classId);
+      if (!options.length) continue;
+      const wanted = String(requested?.[classId] ?? '').toLowerCase();
+      loadout[classId] = (options.find((weapon) => weapon.id === wanted) ?? options[0]).id;
+    }
+    this.loadout = loadout;
     this.render();
-    return this.weaponOptions.map((weapon) => ({ id: weapon.id, ready: weapon.ready }));
+    return this.weaponOptions.map((weapon) => ({ id: weapon.id, class: weapon.class, ready: weapon.ready }));
   }
 
   /** Update one card's load state without exposing the viewmodel object. */
@@ -261,25 +310,33 @@ export class Frontend {
     return this.screen;
   }
 
-  /** Select a loaded card; unloaded cards remain visibly unavailable. */
+  /** Select a loaded card into its class's slot; unloaded cards stay unavailable. */
   chooseWeapon(id) {
     if (this.screen !== 'class') return false;
     const normalized = String(id ?? '').toLowerCase();
     const option = this.weaponOptions.find((weapon) => weapon.id === normalized);
     if (!option || !option.ready) return false;
-    this.selectedWeapon = option.id;
+    this.loadout[option.class] = option.id;
+    this.activeClass = this.classes.some((cls) => cls.id === option.class) ? option.class : this.activeClass;
     this.render();
-    return this.selectedWeapon;
+    return option.id;
   }
 
-  /** Confirm through the existing game-side selector, then return to shell. */
+  /** Confirm the loadout through the game-side selectors, then return to shell. */
   confirmClass() {
     if (this.screen !== 'class') return false;
-    const option = this.weaponOptions.find((weapon) => weapon.id === this.selectedWeapon);
-    if (!option?.ready) return false;
-    const result = this.onSelectWeapon?.(option.id);
+    const primary = this.weaponOptions.find((weapon) => weapon.id === this.loadout.primary);
+    if (!primary?.ready) return false;
+    for (const [classId, id] of Object.entries(this.loadout)) {
+      const option = this.weaponOptions.find((weapon) => weapon.id === id);
+      if (option && !option.ready) return false;
+      if (!option) delete this.loadout[classId];
+    }
+    const loadoutResult = this.onSelectLoadout?.({ ...this.loadout });
+    if (loadoutResult === false) return false;
+    const result = this.onSelectWeapon?.(primary.id);
     if (result === false) return false;
-    const selected = option.id;
+    const selected = primary.id;
     this.closeClass();
     return result ?? selected;
   }
@@ -327,6 +384,8 @@ export class Frontend {
       percent: Math.round(this.fraction * 100),
       caption: this.screen === 'loading' ? this.caption : '',
       selectedWeapon: this.selectedWeapon,
+      activeClass: this.activeClass,
+      loadout: { ...this.loadout },
     };
   }
 
@@ -350,6 +409,32 @@ export class Frontend {
         this.chooseWeapon(card.dataset.weaponId);
       });
     }
+    for (const tab of el.classTabs ?? []) {
+      tab.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.showClassTab(tab.dataset.weaponClass);
+      });
+    }
+  }
+
+  /** Cards are built by the page from the registry; register them after the fact. */
+  bindClassCards(cards = [], tabs = []) {
+    if (!this.elements) return;
+    this.elements.classCards = cards;
+    this.elements.classTabs = tabs;
+    for (const card of cards) {
+      card.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.chooseWeapon(card.dataset.weaponId);
+      });
+    }
+    for (const tab of tabs) {
+      tab.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.showClassTab(tab.dataset.weaponClass);
+      });
+    }
+    this.render();
   }
 
   /** Shell buttons, including class navigation and card confirmation. */
@@ -386,17 +471,31 @@ export class Frontend {
     if (el.controls && this.controls.length) el.controls.textContent = this.controls.join('\n');
     for (const card of el.classCards ?? []) {
       const option = this.weaponOptions.find((weapon) => weapon.id === card.dataset.weaponId);
-      const selected = option?.id === this.selectedWeapon;
+      const classId = option?.class ?? card.dataset.weaponClass ?? 'primary';
+      const selected = Boolean(option) && this.loadout[classId] === option.id;
       card.dataset.selected = String(selected);
       card.dataset.ready = String(Boolean(option?.ready));
       card.disabled = !option?.ready;
+      card.hidden = classId !== this.activeClass;
       const state = card.querySelector('[data-card-state]');
       if (state) state.textContent = option?.ready ? (selected ? 'equipped' : 'ready') : 'loading';
     }
-    const selected = this.weaponOptions.find((weapon) => weapon.id === this.selectedWeapon);
-    if (el.classSelection) {
-      el.classSelection.textContent = selected ? `${selected.name ?? selected.id} selected` : 'Select a rifle';
+    for (const tab of el.classTabs ?? []) {
+      const classId = tab.dataset.weaponClass;
+      tab.dataset.on = String(classId === this.activeClass);
+      const pick = this.weaponOptions.find((weapon) => weapon.id === this.loadout[classId]);
+      const label = tab.querySelector('[data-tab-pick]');
+      if (label) label.textContent = pick ? (pick.name ?? pick.id) : '';
     }
-    if (el.classConfirm) el.classConfirm.disabled = !selected?.ready;
+    const active = this.classes.find((cls) => cls.id === this.activeClass);
+    const selected = this.weaponOptions.find((weapon) => weapon.id === this.loadout[this.activeClass]);
+    if (el.classSelection) {
+      el.classSelection.textContent = selected
+        ? `${selected.name ?? selected.id} selected`
+        : `Select a ${(active?.label ?? 'weapon').toLowerCase()}`;
+    }
+    if (el.classSub) el.classSub.textContent = active?.hint ?? '';
+    const primary = this.weaponOptions.find((weapon) => weapon.id === this.loadout.primary);
+    if (el.classConfirm) el.classConfirm.disabled = !primary?.ready;
   }
 }

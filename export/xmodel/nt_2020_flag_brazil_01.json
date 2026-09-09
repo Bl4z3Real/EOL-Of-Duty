@@ -1,0 +1,21 @@
+{
+    "$schema": "http://openassettools.dev/schema/xmodel.v1.json",
+    "_game": "t6",
+    "_type": "xmodel",
+    "_version": 2,
+    "flags": 2621440,
+    "lightingOriginOffset": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.5
+    },
+    "lightingOriginRange": 0.5,
+    "lods": [
+        {
+            "distance": 22328.5859375,
+            "file": "model_export/nt_2020_flag_brazil_01_lod0.obj"
+        }
+    ],
+    "rootBoneName": "fxanim_mp_nuked2025_flag_brazil",
+    "type": "rigid"
+}

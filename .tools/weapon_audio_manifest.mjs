@@ -41,6 +41,10 @@ const LAYER_FIELDS = [
 export const ASSAULT_RIFLE_IDS = Object.freeze([
   'an94', 'hk416', 'sa58', 'saritch', 'scar', 'sig556', 'tar21', 'type95', 'xm8',
 ]);
+// The secondary slot. Pistol reload foley is shared across the class the same
+// way the rifles' is (fly_pistol_*), so the map stays one sample per cue.
+export const PISTOL_IDS = Object.freeze(['fiveseven', 'fnp45', 'kard', 'beretta93r']);
+export const PLAYER_WEAPON_IDS = Object.freeze([...ASSAULT_RIFLE_IDS, ...PISTOL_IDS]);
 
 // The shipped sig556/xm8 records put their LFE aliases in fireSoundPlayer.
 // Those aliases do resolve, but only to the thump layer; the real shot aliases
@@ -51,6 +55,8 @@ export const ASSAULT_RIFLE_IDS = Object.freeze([
 export const FIRE_SOUND_OVERRIDES = Object.freeze({
   sig556: 'wpn_sig556_fire_plr',
   xm8: 'wpn_xm8_fire_plr',
+  // The B23R record likewise names its LFE layer where the report belongs.
+  beretta93r: 'wpn_beretta93r_fire_plr',
 });
 
 function webSampleName(rawPath) {
@@ -101,7 +107,7 @@ export function notetrackCues(animDir, name) {
 export function buildManifest({
   bankDir = path.join(repoRoot, 'artifacts', 'soundbanks'),
   weaponDir = path.join(repoRoot, 'artifacts', 'weapon-data', 'weapons'),
-  animDir = path.join(repoRoot, 'export_common', 'xanim'),
+  animDir = process.env.T6_XANIM_DIR ?? path.join(repoRoot, 'export_common', 'xanim'),
 } = {}) {
   const { alias, tables } = loadAliasTables(bankDir);
   const resolve = (name) => [...(alias.get(name) ?? [])];
@@ -177,7 +183,7 @@ export function buildManifest({
 export function buildFoleyMap({
   manifest = null,
   bankDir = path.join(repoRoot, 'artifacts', 'soundbanks'),
-  rifleIds = ASSAULT_RIFLE_IDS,
+  rifleIds = PLAYER_WEAPON_IDS,
 } = {}) {
   const sourceManifest = manifest ?? buildManifest({ bankDir });
   const groupsBySources = new Map();
@@ -226,6 +232,7 @@ export function buildFoleyMap({
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const outDir = path.resolve(process.argv[2] ?? path.join(repoRoot, 'artifacts', 'soundbanks'));
+  // T6_XANIM_DIR points at the Unlinker xanim dump the notetrack cues are read from.
   const manifest = buildManifest({ bankDir: outDir });
   const { tables, weapons, samples, silentCues } = manifest;
 

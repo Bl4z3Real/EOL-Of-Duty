@@ -13,11 +13,11 @@
     "lods": [
         {
             "distance": 100.0,
-            "file": "model_export/fx_decal_burnt_paper3_lod0.glb"
+            "file": "model_export/fx_decal_burnt_paper3_lod0.obj"
         },
         {
             "distance": 2000.0,
-            "file": "model_export/fx_decal_burnt_paper3_lod1.glb"
+            "file": "model_export/fx_decal_burnt_paper3_lod1.obj"
         }
     ],
     "rootBoneName": "fx_decal_burnt_paper3_lod0",

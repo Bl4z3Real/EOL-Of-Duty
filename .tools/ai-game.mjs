@@ -16,9 +16,11 @@ const commandOption = process.argv[4];
 // presses a key (see the boot gate in index.html). This harness drives the page
 // through `globalThis.hijacked` without ever generating input, so it asks for
 // the old load-on-sight behaviour explicitly.
+// AI_GAME_MAP selects a map from export/web/maps.js; the default is Hijacked.
 function autostartUrl(url) {
   const parsed = new URL(url);
   parsed.searchParams.set('autostart', '1');
+  if (process.env.AI_GAME_MAP) parsed.searchParams.set('map', process.env.AI_GAME_MAP);
   return String(parsed);
 }
 
@@ -48,6 +50,7 @@ Usage:
 Environment:
   AI_GAME_HEADED=1             Show the controlled browser window
   AI_GAME_ARTIFACT_DIR=<path>  Override artifacts/ai-game
+  AI_GAME_MAP=<id>             Load a map from export/web/maps.js (default mp_hijacked)
   BROWSER_PATH=<path>          Override Chrome or Edge executable
   BROWSER_TEST_URL=<url>       Use an already-running game server
 `;
@@ -60,6 +63,10 @@ function findBrowser() {
     'C:/Program Files (x86)/Google/Chrome/Application/chrome.exe',
     'C:/Program Files/Microsoft/Edge/Application/msedge.exe',
     'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
+    '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+    '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+    '/usr/bin/google-chrome',
+    '/usr/bin/microsoft-edge',
   ].filter(Boolean);
   return candidates.find((candidate) => fs.existsSync(candidate));
 }

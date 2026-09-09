@@ -1,0 +1,26 @@
+{
+    "$schema": "http://openassettools.dev/schema/xmodel.v1.json",
+    "_game": "t6",
+    "_type": "xmodel",
+    "_version": 2,
+    "collLod": 1,
+    "flags": 2097152,
+    "lightingOriginOffset": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.5
+    },
+    "lightingOriginRange": 0.5,
+    "lods": [
+        {
+            "distance": 512.0,
+            "file": "model_export/nt_2020_wall_clock_02_seconds_lod0.obj"
+        },
+        {
+            "distance": 1024.0,
+            "file": "model_export/nt_2020_wall_clock_02_seconds_lod1.obj"
+        }
+    ],
+    "rootBoneName": "nt_2020_wallclock_02_second_lod0",
+    "type": "rigid"
+}

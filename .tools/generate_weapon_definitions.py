@@ -10,6 +10,10 @@ Examples::
 
     python .tools/generate_weapon_definitions.py sa58 saritch scar sig556 tar21 type95 xm8
     python .tools/generate_weapon_definitions.py --all
+    python .tools/generate_weapon_definitions.py --all --ballistics > export/web/weapon-ballistics.js
+
+The weapon files come from ``Unlinker --include-assets weapon`` on
+``common_mp.ff`` into ``artifacts/weapon-data/``.
 
 Display names are the BO2 in-game names.  They are intentionally hardcoded:
 the checked-in localization file contains Windows configuration strings, not
@@ -26,8 +30,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WEAPON_DIR = ROOT / "artifacts" / "weapon-data" / "weapons"
 
+# Primary rifles in class-screen order, then the pistols the secondary slot
+# offers. The Executioner (judge) is left out until the viewmodel can play its
+# shell-by-shell manual reload loop.
 ROSTER = ("hk416", "an94", "sa58", "saritch", "scar", "sig556", "tar21", "type95", "xm8")
+PISTOLS = ("fiveseven", "fnp45", "kard", "beretta93r")
+ALL_IDS = ROSTER + PISTOLS
 DISPLAY_NAMES = {
+    "fiveseven": "Five-seven",
+    "fnp45": "Tac-45",
+    "kard": "KAP-40",
+    "beretta93r": "B23R",
     "hk416": "M27",
     "an94": "AN-94",
     "sa58": "FAL OSW",
@@ -50,6 +63,8 @@ CLIPS = (
     ("introAdsFire", "adsFireIntroAnim"),
     ("reload", "reloadAnim"),
     ("reloadEmpty", "reloadEmptyAnim"),
+    # Pistols carry their own pistol-whip; rifles melee with knife_mp's clips.
+    ("melee", "meleeAnim"),
 )
 
 
@@ -76,12 +91,13 @@ def number(value: str, *, integer: bool = False) -> str:
     return f"{parsed:.6f}".rstrip("0").rstrip(".")
 
 
-def find_magazine(weapon: dict[str, str]) -> tuple[int, str]:
+def find_magazine(weapon: dict[str, str]) -> tuple[int, str] | None:
+    """The separate magazine attachment, or None when the mag is part of the gun (pistols)."""
     for index in range(1, 17):
         model = weapon.get(f"attachViewModel{index}", "")
         if model.startswith("t6_attach_mag_"):
             return index, model
-    raise ValueError("weapon has no authored t6_attach_mag_* viewmodel attachment")
+    return None
 
 
 def clip_entries(weapon: dict[str, str]) -> list[tuple[str, str]]:
@@ -102,33 +118,52 @@ def emit_definition(source_id: str, slot: int) -> str:
     weapon = parse_weapon_file(path)
     runtime_id = RUNTIME_IDS.get(source_id, source_id)
     gun_model = weapon["gunModel"]
-    attachment_index, magazine_model = find_magazine(weapon)
+    magazine = find_magazine(weapon)
     clip_values = clip_entries(weapon)
+    pistol = source_id in PISTOLS
 
     fire_time = float(weapon["fireTime"])
     rpm = int(round(60 / fire_time))
-    offset = [
-        number(weapon[f"attachViewModelOffset{axis}{attachment_index}"])
-        for axis in ("X", "Y", "Z")
-    ]
-    roll = number(weapon.get(f"attachViewModelOffsetRoll{attachment_index}", "0"))
+    fire_type = weapon.get("fireType", "Full Auto")
+    fire_mode = "single" if fire_type == "Single Shot" else "burst" if "Burst" in fire_type else "auto"
+    clip_size = int(round(float(weapon["clipSize"])))
 
     lines = [
         f"  {runtime_id}: Object.freeze({{",
         f"    id: {js_string(runtime_id)},",
         f"    name: {js_string(DISPLAY_NAMES[source_id])},",
+        f"    class: {js_string('secondary' if pistol else 'primary')},",
+        f"    role: {js_string('Pistol' if pistol else 'Assault rifle')},",
         f"    slot: {slot},",
-        "    magazineSize: " + number(weapon["clipSize"], integer=True) + ",",
-        "    reserveAmmo: 240,",
+        f"    sourceId: {js_string(source_id)},",
+        f"    magazineSize: {clip_size},",
+        # Rifles carry eight spare magazines here; the game starts pistols with two.
+        f"    reserveAmmo: {clip_size * 2 if pistol else 240},",
         f"    roundsPerMinute: {rpm},",
+        f"    fireMode: {js_string(fire_mode)},",
         "    damage: " + number(weapon["damage"], integer=True) + ",",
         f"    fireTypeIcon: {js_string(weapon['fireTypeIcon'])},",
         f"    viewmodelUrl: 'viewmodel/{gun_model}_lod0.glb',",
-        f"    magazineUrl: 'viewmodel/{magazine_model}_lod0.glb',",
-        f"    // Authored attachment offset from the shipped {source_id}_mp weapon file.",
-        f"    magazineOffset: Object.freeze([{', '.join(offset)}]),",
-        "    magazineRotation: Object.freeze([THREE.MathUtils.degToRad(" + roll + "), 0, 0]),",
+        f"    worldModelUrl: 'enemies/{weapon['worldModel']}_lod1.glb',",
     ]
+    if fire_mode == "burst":
+        lines.append(f"    burstCount: {number(weapon.get('burstCount', '3'), integer=True)},")
+    if magazine:
+        attachment_index, magazine_model = magazine
+        offset = [
+            number(weapon[f"attachViewModelOffset{axis}{attachment_index}"])
+            for axis in ("X", "Y", "Z")
+        ]
+        roll = number(weapon.get(f"attachViewModelOffsetRoll{attachment_index}", "0"))
+        lines.extend([
+            f"    magazineUrl: 'viewmodel/{magazine_model}_lod0.glb',",
+            f"    // Authored attachment offset from the shipped {source_id}_mp weapon file.",
+            f"    magazineOffset: Object.freeze([{', '.join(offset)}]),",
+            f"    magazineRotation: Object.freeze([degToRad({roll}), 0, 0]),",
+        ])
+    else:
+        lines.append("    // The magazine is part of the gun model; no separate attachment.")
+        lines.append("    magazineUrl: null,")
 
     # AN-94's hyperburst behavior is not represented by the generic weapon
     # fields, so preserve the tuned values from the shipped reference entry.
@@ -146,17 +181,102 @@ def emit_definition(source_id: str, slot: int) -> str:
     return "\n".join(lines)
 
 
+# Hitbox regions the browser resolves, mapped onto the weapon file's
+# locational multipliers. The bots have head, torso and leg boxes only.
+LOCATIONS = (
+    ("none", "locNone"),
+    ("head", "locHead"),
+    ("torso", "locTorsoUpper"),
+    ("legs", "locRightLegUpper"),
+)
+
+
+def ballistics(weapon: dict[str, str]) -> dict:
+    """The range, spread, kick and timing fields export/web/gunplay.js reads."""
+
+    def f(key: str, default: float = 0.0) -> float:
+        value = weapon.get(key, "")
+        return float(value) if value not in ("", None) else default
+
+    ranges = []
+    # maxDamageRange closes the full-damage band; damageRange2/3 open the
+    # next ones; minDamageRange opens the floor. Zero ranges are unused.
+    for range_key, damage_key in (("damageRange2", "damage2"), ("damageRange3", "damage3"),
+                                  ("damageRange4", "damage4"), ("damageRange5", "damage5")):
+        if f(range_key) > 0 and f(damage_key) > 0:
+            ranges.append({"range": f(range_key), "damage": f(damage_key)})
+    if f("minDamageRange") > 0 and f("minDamage") > 0:
+        ranges.append({"range": f("minDamageRange"), "damage": f("minDamage")})
+    ranges.sort(key=lambda band: band["range"])
+
+    def kick(prefix: str) -> dict:
+        return {
+            "pitchMin": f(f"{prefix}ViewKickPitchMin"),
+            "pitchMax": f(f"{prefix}ViewKickPitchMax"),
+            "yawMin": f(f"{prefix}ViewKickYawMin"),
+            "yawMax": f(f"{prefix}ViewKickYawMax"),
+            "centerSpeed": f(f"{prefix}ViewKickCenterSpeed"),
+            "minMagnitude": f(f"{prefix}ViewKickMinMagnitude"),
+        }
+
+    return {
+        "damage": f("damage"),
+        "maxDamageRange": f("maxDamageRange"),
+        "ranges": ranges,
+        "locations": {region: f(key, 1.0) for region, key in LOCATIONS},
+        "hipSpread": {
+            "standMin": f("hipSpreadStandMin"),
+            "duckedMin": f("hipSpreadDuckedMin"),
+            "max": f("hipSpreadMax"),
+            "duckedMax": f("hipSpreadDuckedMax"),
+            "moveAdd": f("hipSpreadMoveAdd"),
+            "fireAdd": f("hipSpreadFireAdd"),
+            "decayRate": f("hipSpreadDecayRate"),
+        },
+        "adsSpread": f("adsSpread"),
+        "hipKick": kick("hip"),
+        "adsKick": kick("ads"),
+        "adsTransInTime": f("adsTransInTime", 0.25),
+        "adsTransOutTime": f("adsTransOutTime", 0.25),
+        "sprintOutTime": f("sprintOutTime", 0.2),
+        "moveSpeedScale": f("moveSpeedScale", 1.0),
+        "penetrateType": (weapon.get("penetrateType") or "none").lower(),
+    }
+
+
+def emit_ballistics_module(ids: tuple[str, ...]) -> str:
+    table = {}
+    for source_id in ids:
+        weapon = parse_weapon_file(WEAPON_DIR / f"{source_id}_mp")
+        table[RUNTIME_IDS.get(source_id, source_id)] = ballistics(weapon)
+    body = json.dumps(table, indent=2, sort_keys=True)
+    return (
+        "// Generated by .tools/generate_weapon_definitions.py --ballistics from the\n"
+        "// T6 weapon files. Read by export/web/gunplay.js. Do not edit by hand.\n"
+        f"export const WEAPON_BALLISTICS = Object.freeze({body});\n"
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("ids", nargs="*", help="weapon-file ids to emit")
-    parser.add_argument("--all", action="store_true", help="emit the complete nine-rifle roster")
+    parser.add_argument("--all", action="store_true", help="emit the complete roster: nine rifles and four pistols")
+    parser.add_argument(
+        "--ballistics",
+        action="store_true",
+        help="emit export/web/weapon-ballistics.js (range, spread, kick, ADS and sprint timing) instead of definitions",
+    )
     args = parser.parse_args()
-    unknown = sorted(set(args.ids) - set(ROSTER))
+    unknown = sorted(set(args.ids) - set(ALL_IDS))
     if unknown:
         parser.error(f"unknown weapon id(s): {', '.join(unknown)}")
-    ids = ROSTER if args.all or not args.ids else tuple(args.ids)
+    ids = ALL_IDS if args.all or not args.ids else tuple(args.ids)
+    if args.ballistics:
+        print(emit_ballistics_module(ids), end="")
+        return
     for source_id in ids:
-        print(emit_definition(source_id, ROSTER.index(source_id) + 1))
+        group = PISTOLS if source_id in PISTOLS else ROSTER
+        print(emit_definition(source_id, group.index(source_id) + 1))
 
 
 if __name__ == "__main__":

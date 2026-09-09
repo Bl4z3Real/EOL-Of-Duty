@@ -1,0 +1,29 @@
+{
+    "$schema": "http://openassettools.dev/schema/xmodel.v1.json",
+    "_game": "t6",
+    "_type": "xmodel",
+    "_version": 2,
+    "collLod": 2,
+    "flags": 6815744,
+    "lightingOriginOffset": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.5
+    },
+    "lightingOriginRange": 0.5,
+    "lods": [
+        {
+            "distance": 2000.0,
+            "file": "model_export/mlv/nt_tree_ficus_lrg_01_sway_lod0.obj"
+        },
+        {
+            "distance": 4000.0,
+            "file": "model_export/mlv/nt_tree_ficus_lrg_01_sway_lod1.obj"
+        },
+        {
+            "distance": 98118.59375,
+            "file": "model_export/mlv/nt_tree_ficus_lrg_01_sway_lod2.obj"
+        }
+    ],
+    "type": "rigid"
+}

@@ -41,3 +41,15 @@ test('suicides count as a death without awarding a kill', () => {
   assert.equal(player.kills, 0);
   assert.equal(player.deaths, 1);
 });
+
+test('a kill can carry detail for the feed, such as its range', async () => {
+  const { FreeForAllMatch } = await import('../export/web/free-for-all-match.js');
+  const match = new FreeForAllMatch({ scoreLimit: 30, timeLimitSeconds: 300 });
+  match.register('player', 'YOU', { human: true });
+  match.register('bot-0', 'VIPER');
+  const event = match.recordKill('player', 'bot-0', { distance: 1620 });
+  assert.equal(event.distance, 1620);
+  assert.equal(match.getState().feed[0].distance, 1620);
+  const plain = match.recordKill('bot-0', 'player');
+  assert.equal(plain.distance, undefined);
+});

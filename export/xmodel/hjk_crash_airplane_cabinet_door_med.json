@@ -13,7 +13,7 @@
     "lods": [
         {
             "distance": 2000.0,
-            "file": "model_export/hjk_crash_airplane_cabinet_door_med_lod0.glb"
+            "file": "model_export/hjk_crash_airplane_cabinet_door_med_lod0.obj"
         }
     ],
     "rootBoneName": "bspfbxasc032meshfbxasc032node013",

@@ -175,3 +175,32 @@ test('frontend failure is terminal and reports its message', () => {
   frontend.progress('render', { loaded: 10, total: 10 });
   assert.equal(frontend.getState().percent, 50, 'progress stops once loading is over');
 });
+
+test('create-a-class is tabbed: one pick per class, the wheel-ready loadout on confirm', () => {
+  const loadouts = [];
+  const frontend = new Frontend({ onSelectLoadout: (loadout) => { loadouts.push(loadout); return true; } });
+  frontend.setClasses([
+    { id: 'primary', label: 'Primary' }, { id: 'secondary', label: 'Secondary' }, { id: 'lethal', label: 'Lethal' },
+  ]);
+  frontend.setWeapons([
+    { id: 'm27', name: 'M27', class: 'primary', ready: true },
+    { id: 'an94', name: 'AN-94', class: 'primary', ready: true },
+    { id: 'fiveseven', name: 'Five-seven', class: 'secondary', ready: true },
+    { id: 'kard', name: 'KAP-40', class: 'secondary', ready: false },
+    { id: 'frag', name: 'Frag', class: 'lethal', ready: true },
+  ], { primary: 'an94', secondary: 'fiveseven', lethal: 'frag' });
+  frontend.setReady();
+  assert.equal(frontend.activeClass, 'primary');
+  assert.equal(frontend.selectedWeapon, 'an94');
+  assert.deepEqual(frontend.getState().loadout, { primary: 'an94', secondary: 'fiveseven', lethal: 'frag' });
+
+  frontend.openClass();
+  assert.equal(frontend.showClassTab('secondary'), 'secondary');
+  assert.equal(frontend.showClassTab('perks'), false, 'unknown tabs are refused');
+  assert.equal(frontend.chooseWeapon('kard'), false, 'an unloaded pistol cannot be equipped');
+  assert.equal(frontend.chooseWeapon('m27'), 'm27', 'a pick lands in its own class slot');
+  assert.equal(frontend.activeClass, 'primary', 'and switches the view to that tab');
+  assert.equal(frontend.getState().loadout.secondary, 'fiveseven', 'the other slots keep their picks');
+  assert.equal(frontend.confirmClass(), 'm27');
+  assert.deepEqual(loadouts, [{ primary: 'm27', secondary: 'fiveseven', lethal: 'frag' }]);
+});

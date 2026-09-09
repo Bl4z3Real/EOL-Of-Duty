@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export a lightweight collision/navmesh source for mp_hijacked.
+"""Export a lightweight collision/navmesh source for a T6 multiplayer map.
 
 The render composer intentionally keeps all of the original BSP surfaces and
 render materials.  This module emits a separate, untextured glTF containing
@@ -35,6 +35,16 @@ _ENTITY_KV_RE = re.compile(r'"([^"]+)"\s+"([^"]*)"')
 
 def _path(root: str, *parts: str) -> str:
     return os.path.join(root, *parts)
+
+
+def map_prefix(map_name: str) -> str:
+    """Output prefix for a map: ``mp_hijacked`` writes ``hijacked_*``."""
+
+    return map_name[3:] if map_name.startswith("mp_") else map_name
+
+
+def _map_source(root: str, map_name: str, suffix: str) -> str:
+    return _path(root, "export", "maps", "mp", "%s.d3dbsp.%s" % (map_name, suffix))
 
 
 def _game_to_three(value: Sequence[float]) -> Vec3:
@@ -90,6 +100,83 @@ def _parse_entities(path: str) -> List[Dict[str, str]]:
         if entity:
             entities.append(entity)
     return entities
+
+
+# Brush models are the entities' "*N" inline models: glass panes, the living
+# room carpet, roof panels. Their surfaces sit after the static world's in the
+# dump and are authored around their own origin, so they have to be moved to
+# the entity that owns them or they pile up at the map origin.
+#
+# Nuketown's hydro-car display case exists twice: a server-side brush model
+# (`nuke_display_glass_server`, at the right place on the road) and a client
+# fxanim script_model (`nuke_display_glass_client`) whose bind pose sits 30 to
+# 60 units under the asphalt because the game poses it with an xanim this
+# exporter never plays. The brush copy is the one drawn; the fxanim copy is
+# skipped below along with every other script_model the map spawns hidden.
+_DRAWN_BRUSH_CLASSES = {"script_brushmodel", "glass"}
+_HIDDEN_BRUSH_TARGETNAMES = ("bombzone_clip",)
+
+
+def brush_surface_placements(world: Dict, entities: Sequence[Dict[str, str]]) -> Dict[int, Dict]:
+    """surface index -> {"origin", "axes", "hidden"} for every brush model surface.
+
+    ``brushModels`` is the dump's table of ``*N`` models (index 0 is the world
+    itself); dumps without it place nothing. ``axes`` is None when the entity
+    has no rotation.
+    """
+
+    models = world.get("brushModels") or []
+    placements: Dict[int, Dict] = {}
+    for entity in entities:
+        model = entity.get("model", "")
+        if not model.startswith("*"):
+            continue
+        try:
+            index = int(model[1:])
+        except ValueError:
+            continue
+        if index <= 0 or index >= len(models):
+            continue
+        count = int(models[index].get("count", 0))
+        start = int(models[index].get("start", 0))
+        if count <= 0 or start < 0 or start >= len(world.get("surfaces", [])):
+            continue
+        classname = entity.get("classname", "").lower()
+        targetname = entity.get("targetname", "").lower()
+        try:
+            spawnflags = int(entity.get("spawnflags", "0"))
+        except ValueError:
+            spawnflags = 0
+        hidden = classname not in _DRAWN_BRUSH_CLASSES or bool(spawnflags & 1) or targetname.startswith(_HIDDEN_BRUSH_TARGETNAMES)
+        origin = _parse_float_vector(entity.get("origin", "0 0 0")) or [0.0, 0.0, 0.0]
+        angles = _parse_float_vector(entity.get("angles", "0 0 0")) or [0.0, 0.0, 0.0]
+        axes = _angles_to_axes(angles) if any(abs(a) > 1e-6 for a in angles) else None
+        for surface_index in range(start, start + count):
+            placements[surface_index] = {"origin": origin, "axes": axes, "hidden": hidden}
+    return placements
+
+
+def brush_surface_placements_for_map(root: str, map_name: str, world: Dict) -> Dict[int, Dict]:
+    ents_path = _map_source(root, map_name, "ents")
+    if not os.path.exists(ents_path):
+        return {}
+    return brush_surface_placements(world, _parse_entities(ents_path))
+
+
+def place_brush_vertex(placement: Dict, position: Sequence[float]) -> Tuple[float, float, float]:
+    """A brush model vertex moved from model space to the world, game axes."""
+
+    x, y, z = position
+    axes = placement.get("axes")
+    if axes:
+        forward, left, up = axes
+        x, y, z = (
+            forward[0] * x + left[0] * y + up[0] * z,
+            forward[1] * x + left[1] * y + up[1] * z,
+            forward[2] * x + left[2] * y + up[2] * z,
+        )
+    origin = placement["origin"]
+    return (x + origin[0], y + origin[1], z + origin[2])
 
 
 def _obj_index(token: str, vertex_count: int) -> Optional[int]:
@@ -204,8 +291,9 @@ def _collision_material_reason(material: Dict) -> Tuple[bool, str]:
     if not solid_tokens:
         if has_water:
             return False, "water"
-        if has_glass:
-            return False, "glass"
+        # Glass stays: T6 glass is solid until it is shot out, and the shelter
+        # roofs on Nuketown are glass a player can stand on. Rounds pass
+        # through it in the browser by material class instead (gunplay.js).
         if all(_is_non_solid_token(token) for token in tokens):
             return False, "non_solid"
     return True, "included"
@@ -278,16 +366,16 @@ class _CollisionGltf:
         })
         return len(self.meshes) - 1
 
-    def document(self, nodes: List[Dict], extras: Dict) -> Dict:
+    def document(self, nodes: List[Dict], extras: Dict, bin_name: str) -> Dict:
         return {
-            "asset": {"version": "2.0", "generator": "hijacked-collision-export"},
+            "asset": {"version": "2.0", "generator": "t6-collision-export"},
             "scene": 0,
             "scenes": [{"nodes": list(range(len(nodes)))}],
             "nodes": nodes,
             "meshes": self.meshes,
             "accessors": self.accessors,
             "bufferViews": self.buffer_views,
-            "buffers": [{"uri": "hijacked_collision.bin", "byteLength": len(self.data)}],
+            "buffers": [{"uri": bin_name, "byteLength": len(self.data)}],
             "extras": extras,
         }
 
@@ -346,10 +434,10 @@ def _model_mesh_data(obj_path: str) -> Optional[Tuple[List[float], List[int], in
     return positions, indices, len(positions) // 3, len(indices) // 3
 
 
-def _read_world_collision(root: str, gltf: _CollisionGltf) -> Tuple[int, Dict, List[float], List[int]]:
-    world_json_path = _path(root, "export", "maps", "mp", "mp_hijacked.d3dbsp.gfxworld.json")
-    vertex_path = _path(root, "export", "maps", "mp", "mp_hijacked.d3dbsp.gfxworld.vd0")
-    index_path = _path(root, "export", "maps", "mp", "mp_hijacked.d3dbsp.gfxworld.idx")
+def _read_world_collision(root: str, gltf: _CollisionGltf, map_name: str) -> Tuple[int, Dict, List[float], List[int]]:
+    world_json_path = _map_source(root, map_name, "gfxworld.json")
+    vertex_path = _map_source(root, map_name, "gfxworld.vd0")
+    index_path = _map_source(root, map_name, "gfxworld.idx")
     with open(world_json_path, "r", encoding="utf-8") as stream:
         world = json.load(stream)
     with open(vertex_path, "rb") as stream:
@@ -369,21 +457,30 @@ def _read_world_collision(root: str, gltf: _CollisionGltf) -> Tuple[int, Dict, L
     included_triangles = 0
     skipped_triangles = 0
 
-    def world_vertex(offset: int) -> Optional[int]:
-        existing = vertex_cache.get(offset)
+    def world_vertex(offset: int, placement: Optional[Dict] = None, surface_index: int = -1) -> Optional[int]:
+        key = (offset, surface_index) if placement else offset
+        existing = vertex_cache.get(key)
         if existing is not None:
             return existing
         if offset < 0 or offset + 12 > len(raw_vertices):
             return None
         game_position = struct.unpack_from("<3f", raw_vertices, offset)
+        if placement:
+            game_position = place_brush_vertex(placement, game_position)
         position = _game_to_three(game_position)
         index = len(positions) // 3
         positions.extend(position)
-        vertex_cache[offset] = index
+        vertex_cache[key] = index
         return index
 
     materials = world.get("materials", [])
-    for surface in world.get("surfaces", []):
+    brush_placements = brush_surface_placements_for_map(root, map_name, world)
+    for surface_index, surface in enumerate(world.get("surfaces", [])):
+        placement = brush_placements.get(surface_index)
+        if placement and placement["hidden"]:
+            skipped_surfaces += 1
+            skipped_triangles += int(surface.get("tc", 0))
+            continue
         material_index = int(surface.get("m", -1))
         material = materials[material_index] if 0 <= material_index < len(materials) else {}
         keep, reason = _collision_material_reason(material)
@@ -404,9 +501,9 @@ def _read_world_collision(root: str, gltf: _CollisionGltf) -> Tuple[int, Dict, L
             if index_offset + 2 >= len(indices):
                 skipped_triangles += 1
                 continue
-            a = world_vertex(base_offset + int(indices[index_offset]) * 36)
-            b = world_vertex(base_offset + int(indices[index_offset + 1]) * 36)
-            c = world_vertex(base_offset + int(indices[index_offset + 2]) * 36)
+            a = world_vertex(base_offset + int(indices[index_offset]) * 36, placement, surface_index)
+            b = world_vertex(base_offset + int(indices[index_offset + 1]) * 36, placement, surface_index)
+            c = world_vertex(base_offset + int(indices[index_offset + 2]) * 36, placement, surface_index)
             if a is None or b is None or c is None or a == b or b == c or a == c:
                 skipped_triangles += 1
                 continue
@@ -437,21 +534,113 @@ def _read_world_collision(root: str, gltf: _CollisionGltf) -> Tuple[int, Dict, L
             reason: count for reason, count in sorted(material_reasons.items()) if reason != "included"
         },
         "materialFilter": (
-            "skip distant/water/ocean/pool, actual glass, and materials made only "
+            "skip distant/water/ocean/pool and materials made only "
             "from decal/ao/fx/light/shadow/sky-like tokens; retain solid composites"
         ),
     }
     return mesh_index, stats, positions, output_indices
 
 
-def _entity_hints(root: str) -> Dict:
-    entity_path = _path(root, "export", "maps", "mp", "mp_hijacked.d3dbsp.ents")
+# Gametype and scripting placeholders that have a model but are never seen as
+# world props: objective markers, the carepackage and bomb props the modes
+# spawn, and the animated copies the Nuketown ending swaps in.
+_SCRIPT_MODEL_SKIP = {"tag_origin", "mp_flag_neutral", "prop_suitcase_bomb", "t6_wpn_supply_drop_hq"}
+_SCRIPT_MODEL_SKIP_PREFIXES = ("p_glo_bomb_stack",)
+# The client-side fxanim display case; see _HIDDEN_BRUSH_TARGETNAMES.
+_SCRIPT_MODEL_SKIP_TARGETNAMES = ("nuke_display_glass_client",)
+
+
+def _angles_to_axes(angles: Sequence[float]) -> Tuple[Vec3, Vec3, Vec3]:
+    """T6 entity angles (pitch, yaw, roll in degrees) to forward/left/up axes."""
+
+    pitch, yaw, roll = (math.radians(float(v)) for v in angles)
+    sp, cp = math.sin(pitch), math.cos(pitch)
+    sy, cy = math.sin(yaw), math.cos(yaw)
+    sr, cr = math.sin(roll), math.cos(roll)
+    forward = (cp * cy, cp * sy, -sp)
+    right = (-sr * sp * cy + cr * sy, -sr * sp * sy - cr * cy, -sr * cp)
+    up = (cr * sp * cy + sr * sy, cr * sp * sy - sr * cy, cr * cp)
+    left = (-right[0], -right[1], -right[2])
+    return forward, left, up
+
+
+def script_model_instances(root: str, map_name: str) -> List[Dict]:
+    """Placed script_model entities in the same shape as gfxworld staticModels.
+
+    The vehicles, mannequins, flags and clocks on Nuketown and the lights and
+    umbrellas on Hijacked are script_model entities, not static models, so
+    the render world alone leaves them out.
+    """
+
+    instances: List[Dict] = []
+    for entity in _parse_entities(_map_source(root, map_name, "ents")):
+        if entity.get("classname", "").lower() != "script_model":
+            continue
+        model = entity.get("model", "")
+        if not model or model in _SCRIPT_MODEL_SKIP or model.startswith(_SCRIPT_MODEL_SKIP_PREFIXES):
+            continue
+        targetname = entity.get("targetname", "")
+        if targetname.startswith("nuke_animated") or targetname.startswith(_SCRIPT_MODEL_SKIP_TARGETNAMES):
+            continue
+        # spawnflags 2 is a script-spawned model the map keeps hidden until its
+        # script shows it (the ending flags, the fxanim props); the client copy
+        # of the display case is one of them. Brush placements honour the same
+        # flag above.
+        try:
+            spawnflags = int(entity.get("spawnflags", "0") or 0)
+        except ValueError:
+            spawnflags = 0
+        if spawnflags & 2 and model.startswith("fxanim_"):
+            continue
+        origin = _parse_float_vector(entity.get("origin", "0 0 0")) or [0.0, 0.0, 0.0]
+        angles = _parse_float_vector(entity.get("angles", "0 0 0")) or [0.0, 0.0, 0.0]
+        forward, left, up = _angles_to_axes(angles)
+        instances.append({
+            "model": model,
+            "origin": [float(v) for v in origin],
+            "axis0": list(forward),
+            "axis1": list(left),
+            "axis2": list(up),
+            "scale": float(entity.get("modelscale", "1") or 1.0),
+            "entity": entity.get("classname"),
+        })
+    return instances
+
+
+def _ambience_emitters(entities: List[Dict[str, str]]) -> List[Dict]:
+    """Sound emitters the map's ambient package would spawn.
+
+    ``script_struct`` entities with a ``script_sound`` are the map's ambience:
+    ``looper`` and ``line_emitter`` structs run a loop at their origin,
+    ``random`` structs fire one-shots at random intervals. Bump triggers and
+    the rest carry sounds too but need gameplay to fire them.
+    """
+
+    emitters: List[Dict] = []
+    for entity in entities:
+        if entity.get("classname", "").lower() != "script_struct":
+            continue
+        alias = entity.get("script_sound", "")
+        game_origin = _parse_float_vector(entity.get("origin", ""))
+        if not alias or game_origin is None:
+            continue
+        label = entity.get("script_label", "").lower()
+        looping = label in {"looper", "line_emitter"} or entity.get("script_looping") == "1"
+        record = {"alias": alias, "mode": "loop" if looping else "random", "label": label or None}
+        record.update(_point_fields(_game_to_three(game_origin), game_origin))
+        emitters.append(record)
+    return emitters
+
+
+def _entity_hints(root: str, map_name: str) -> Dict:
+    entity_path = _map_source(root, map_name, "ents")
     entities = _parse_entities(entity_path)
     pathnodes: List[Dict] = []
     negotiation_nodes: List[Dict] = []
     begins: List[Dict] = []
     ends_by_target: Dict[str, Dict] = {}
     spawns: List[Dict] = []
+    minimap_corners: List[List[float]] = []
 
     for ordinal, entity in enumerate(entities):
         classname = entity.get("classname", "")
@@ -462,6 +651,10 @@ def _entity_hints(root: str) -> Dict:
         position = _game_to_three(game_origin)
         guid = entity.get("guid")
         base = {"ordinal": ordinal, "guid": guid, "classname": classname}
+
+        # The two corners bound the square the compass_map_* radar art covers.
+        if entity.get("targetname", "").lower() == "minimap_corner":
+            minimap_corners.append([float(v) for v in game_origin])
 
         if lower_classname == "node_pathnode":
             record = dict(base)
@@ -533,8 +726,8 @@ def _entity_hints(root: str) -> Dict:
         off_mesh.append(record)
 
     return {
-        "format": "hijacked-nav-hints-v1",
-        "map": "mp_hijacked",
+        "format": "nav-hints-v1",
+        "map": map_name,
         "coordinateSystem": {
             "source": "T6 z-up coordinates",
             "target": "Three.js y-up coordinates",
@@ -545,6 +738,8 @@ def _entity_hints(root: str) -> Dict:
         "negotiationNodes": negotiation_nodes,
         "offMeshConnections": off_mesh,
         "spawns": spawns,
+        "minimap": {"corners": minimap_corners, "coordinateSystem": "T6 z-up game units"},
+        "ambience": _ambience_emitters(entities),
         "counts": {
             "entities": len(entities),
             "pathnodes": len(pathnodes),
@@ -562,21 +757,22 @@ def _entity_hints(root: str) -> Dict:
     }
 
 
-def export_collision(root: str, out_dir: Optional[str] = None) -> Dict:
+def export_collision(root: str, out_dir: Optional[str] = None, map_name: str = "mp_hijacked") -> Dict:
     """Write collision glTF, nav hints, and documentation; return summary stats."""
 
     if out_dir is None:
         out_dir = _path(root, "export", "web")
     os.makedirs(out_dir, exist_ok=True)
+    prefix = map_prefix(map_name)
 
     gltf = _CollisionGltf()
-    world_mesh, world_stats, _world_positions, _world_indices = _read_world_collision(root, gltf)
+    world_mesh, world_stats, _world_positions, _world_indices = _read_world_collision(root, gltf, map_name)
     nodes: List[Dict] = [{"mesh": world_mesh, "name": "world_collision"}]
 
-    world_json_path = _path(root, "export", "maps", "mp", "mp_hijacked.d3dbsp.gfxworld.json")
+    world_json_path = _map_source(root, map_name, "gfxworld.json")
     with open(world_json_path, "r", encoding="utf-8") as stream:
         world = json.load(stream)
-    static_models = world.get("staticModels", [])
+    static_models = list(world.get("staticModels", [])) + script_model_instances(root, map_name)
     model_json_dir = _path(root, "export", "xmodel")
     obj_dir = _path(root, "export", "model_export")
     model_mesh_indices: Dict[str, int] = {}
@@ -649,9 +845,10 @@ def export_collision(root: str, out_dir: Optional[str] = None) -> Dict:
         })
         included_instances += 1
 
-    hints = _entity_hints(root)
+    hints = _entity_hints(root, map_name)
     gltf_extras = {
-        "format": "hijacked-collision-source-v1",
+        "format": "collision-source-v1",
+        "map": map_name,
         # The mesh has already been converted to Three.js coordinates.  Keep
         # this token canonical because the Node baker validates it strictly.
         "coordinateSystem": "three-y-up",
@@ -666,7 +863,7 @@ def export_collision(root: str, out_dir: Optional[str] = None) -> Dict:
             "instancesSkipped": sum(skipped_instances.values()),
         },
         # The baker can consume these directly without a second hints-file
-        # argument; the full records remain in hijacked_nav_hints.json.
+        # argument; the full records remain in the *_nav_hints.json sidecar.
         "pathnodes": [record["position"] for record in hints["pathnodes"]],
         "offMeshConnections": [
             {
@@ -681,27 +878,27 @@ def export_collision(root: str, out_dir: Optional[str] = None) -> Dict:
             if record["start"] is not None and record["end"] is not None
         ],
     }
-    document = gltf.document(nodes, gltf_extras)
-    gltf_path = _path(out_dir, "hijacked_collision.gltf")
-    bin_path = _path(out_dir, "hijacked_collision.bin")
+    document = gltf.document(nodes, gltf_extras, "%s_collision.bin" % prefix)
+    gltf_path = _path(out_dir, "%s_collision.gltf" % prefix)
+    bin_path = _path(out_dir, "%s_collision.bin" % prefix)
     with open(gltf_path, "w", encoding="utf-8", newline="\n") as stream:
         json.dump(document, stream, separators=(",", ":"))
         stream.write("\n")
     with open(bin_path, "wb") as stream:
         stream.write(gltf.data)
 
-    hints_path = _path(out_dir, "hijacked_nav_hints.json")
+    hints_path = _path(out_dir, "%s_nav_hints.json" % prefix)
     with open(hints_path, "w", encoding="utf-8", newline="\n") as stream:
         json.dump(hints, stream, separators=(",", ":"))
         stream.write("\n")
 
     source_doc = {
-        "format": "hijacked-collision-source-v1",
-        "map": "mp_hijacked",
+        "format": "collision-source-v1",
+        "map": map_name,
         "files": {
-            "collisionGltf": "hijacked_collision.gltf",
-            "collisionBin": "hijacked_collision.bin",
-            "navHints": "hijacked_nav_hints.json",
+            "collisionGltf": "%s_collision.gltf" % prefix,
+            "collisionBin": "%s_collision.bin" % prefix,
+            "navHints": "%s_nav_hints.json" % prefix,
         },
         "coordinateSystem": {
             "source": "T6 z-up",
@@ -742,11 +939,11 @@ def export_collision(root: str, out_dir: Optional[str] = None) -> Dict:
         "notes": [
             "This is a source mesh, not a baked Recast navmesh. Feed it to a Node/Recast baker and serialize the result for runtime use.",
             "BSP clipmap/physics data is not available in the extracted files; world geometry plus xmodel collLod is therefore an approximation.",
-            "Render-only materials (distant/water/glass/decal/FX/light-like) are excluded using material-name heuristics; inspect the debug navmesh and adjust filters if needed.",
+            "Render-only materials (distant/water/decal/FX/light-like) are excluded using material-name heuristics; glass is kept solid; inspect the debug navmesh and adjust filters if needed.",
             "The browser still needs a capsule collision controller; a navmesh only constrains AI/path queries.",
         ],
     }
-    source_path = _path(out_dir, "hijacked_collision_source.json")
+    source_path = _path(out_dir, "%s_collision_source.json" % prefix)
     with open(source_path, "w", encoding="utf-8", newline="\n") as stream:
         json.dump(source_doc, stream, indent=2)
         stream.write("\n")
@@ -782,13 +979,15 @@ def export_collision(root: str, out_dir: Optional[str] = None) -> Dict:
         )
     )
     print(
-        "written: hijacked_collision.gltf (%d KB), hijacked_collision.bin (%d KB), "
-        "hijacked_nav_hints.json, hijacked_collision_source.json"
-        % (os.path.getsize(gltf_path) // 1024, os.path.getsize(bin_path) // 1024)
+        "written: %s_collision.gltf (%d KB), %s_collision.bin (%d KB), "
+        "%s_nav_hints.json, %s_collision_source.json"
+        % (prefix, os.path.getsize(gltf_path) // 1024, prefix, os.path.getsize(bin_path) // 1024, prefix, prefix)
     )
     return stats
 
 
 if __name__ == "__main__":
+    import sys
+
     _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    export_collision(_root)
+    export_collision(_root, map_name=sys.argv[1] if len(sys.argv) > 1 else "mp_hijacked")

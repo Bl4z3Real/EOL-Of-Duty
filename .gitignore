@@ -44,18 +44,36 @@
 !/.tools/weapon_audio_manifest.mjs
 !/.tools/extract_weapon_audio.mjs
 !/.tools/generate_weapon_definitions.py
+!/.tools/import_weapon_assets.py
 !/.tools/measure_sights.mjs
 !/.tools/pack_web_textures.mjs
 !/.tools/ai-game.mjs
+!/.tools/convert_textures.py
+!/.tools/world_audio_manifest.mjs
+!/.tools/oat/
+!/.tools/oat/*.patch
+!/.tools/oat/UPSTREAM_COMMIT
 !/export/
 !/export/web/
 !/export/web/**
 !/export/xmodel/
 !/export/xmodel/*.json
+!/export/xmodel/mlv/
+!/export/xmodel/mlv/*.json
 !/export/maps/
 !/export/maps/mp/
-!/export/maps/mp/mp_hijacked.d3dbsp.gfxworld.*
-!/export/maps/mp/mp_hijacked.d3dbsp.ents
+!/export/maps/mp/mp_*.d3dbsp.gfxworld.*
+!/export/maps/mp/mp_*.d3dbsp.ents
+
+# Bake inputs and intermediates for maps added after Hijacked. The runtime
+# never fetches them and the deploy scripts drop them; 50 MB per map is too
+# much to carry in git for files compose_scene.py rebuilds in two seconds.
+/export/web/nuketown_2020.gltf
+/export/web/nuketown_2020.bin
+/export/web/nuketown_2020_geometry.glb
+/export/web/nuketown_2020_collision.gltf
+/export/web/nuketown_2020_collision.bin
+/export/web/nuketown_2020_collision_source.json
 
 # Local smoke/probe artifacts
 /test/*.png

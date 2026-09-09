@@ -11,26 +11,36 @@ import { MeshBVH, SAH } from 'three-mesh-bvh';
 
 import { parseGltfGeometry } from './bake_navmesh.mjs';
 
+import { DEFAULT_MAP, MAP_IDS, findMap, mapFiles } from '../export/web/maps.js';
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const DEFAULT_INPUT = 'export/web/hijacked_collision.gltf';
-const DEFAULT_OUTPUT = 'export/web/hijacked_collision_bvh.bin';
 
 function absolute(filename) {
   return path.isAbsolute(filename) ? filename : path.resolve(ROOT, filename);
 }
 
+function resolveMap(value) {
+  const map = findMap(value ?? DEFAULT_MAP);
+  if (!map) throw new Error(`unknown map ${value}; expected one of ${MAP_IDS.join(', ')}`);
+  return map;
+}
+
 function parseArgs(argv) {
-  const args = { input: DEFAULT_INPUT, output: DEFAULT_OUTPUT, meta: null };
+  const args = { map: DEFAULT_MAP, input: null, output: null, meta: null };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--input' || arg === '-i') args.input = argv[++i];
+    if (arg === '--map' || arg === '-m') args.map = argv[++i];
+    else if (arg === '--input' || arg === '-i') args.input = argv[++i];
     else if (arg === '--output' || arg === '-o') args.output = argv[++i];
     else if (arg === '--meta') args.meta = argv[++i];
     else if (arg === '--help' || arg === '-h') {
-      console.log('usage: node .tools/bake_collision_bvh.mjs [--input collision.gltf] [--output collision_bvh.bin] [--meta collision_bvh.json]');
+      console.log('usage: node .tools/bake_collision_bvh.mjs [--map mp_hijacked] [--input collision.gltf] [--output collision_bvh.bin] [--meta collision_bvh.json]');
       return null;
     } else throw new Error(`unknown argument ${arg}`);
   }
+  const files = mapFiles(resolveMap(args.map));
+  args.input ??= `export/web/${files.collisionGltf}`;
+  args.output ??= `export/web/${files.collisionBvh}`;
   return args;
 }
 
@@ -90,7 +100,7 @@ async function main() {
 
   const binary = Buffer.concat(parts);
   const metadata = {
-    format: 'hijacked-collision-bvh-v1',
+    format: 'collision-bvh-v1',
     threeMeshBvhVersion: '0.9.14',
     source: path.relative(ROOT, input).replaceAll('\\', '/'),
     binary: path.basename(output),

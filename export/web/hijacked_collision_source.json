@@ -1,5 +1,5 @@
 {
-  "format": "hijacked-collision-source-v1",
+  "format": "collision-source-v1",
   "map": "mp_hijacked",
   "files": {
     "collisionGltf": "hijacked_collision.gltf",
@@ -22,40 +22,38 @@
     "units": "T6 world units"
   },
   "mesh": {
-    "nodes": 1477,
-    "meshes": 234,
-    "binBytes": 3560952,
+    "nodes": 1489,
+    "meshes": 235,
+    "binBytes": 3590460,
     "world": {
       "sourceSurfaces": 2366,
-      "includedSurfaces": 2206,
-      "skippedSurfaces": 160,
-      "includedTriangles": 75514,
-      "skippedTriangles": 2045,
-      "vertices": 106581,
-      "materialsIncluded": 202,
+      "includedSurfaces": 2295,
+      "skippedSurfaces": 71,
+      "includedTriangles": 76370,
+      "skippedTriangles": 1189,
+      "vertices": 107770,
+      "materialsIncluded": 217,
       "materialsSkipped": {
         "distant": 1,
-        "glass": 15,
         "non_solid": 15,
         "water": 3
       },
       "surfaceSkipReasons": {
         "distant": 2,
-        "glass": 89,
         "non_solid": 62,
         "water": 7
       },
-      "materialFilter": "skip distant/water/ocean/pool, actual glass, and materials made only from decal/ao/fx/light/shadow/sky-like tokens; retain solid composites"
+      "materialFilter": "skip distant/water/ocean/pool and materials made only from decal/ao/fx/light/shadow/sky-like tokens; retain solid composites"
     },
     "models": {
-      "sourceInstances": 2406,
-      "sourceUniqueModels": 352,
-      "withCollLod": 233,
-      "collisionMeshes": 233,
-      "includedInstances": 1476,
-      "skippedInstances": 930,
+      "sourceInstances": 2428,
+      "sourceUniqueModels": 357,
+      "withCollLod": 234,
+      "collisionMeshes": 234,
+      "includedInstances": 1488,
+      "skippedInstances": 940,
       "skippedByReason": {
-        "no_collLod": 930
+        "no_collLod": 940
       },
       "missingXmodelJson": [],
       "withoutCollLod": [
@@ -88,9 +86,12 @@
         "dub_flower_vase_dp7",
         "dub_lounge_chair_03",
         "dub_rest_napkins_plates",
+        "fxanim_gp_dryer_mod",
+        "fxanim_gp_seagull_mod",
         "fxanim_gp_streamer_long_orange_mod",
         "fxanim_gp_streamer_med_orange_mod",
         "fxanim_gp_towel_yellow_mod",
+        "fxanim_gp_umbrella_01_mod",
         "hjk_crash_airplane_cabinet_door_med",
         "hjk_plane_window_02",
         "hjk_red_latch",
@@ -146,6 +147,7 @@
         "p6_blackout_rail_simple_64",
         "p6_blackout_stair_rail_hangar_ctrl_a",
         "p6_garage_pipes_sprinkler",
+        "p6_hijacked_hot_tub_details",
         "p6_hijacked_railing_front01_right",
         "p6_hijacked_railing_front02_right",
         "p6_mech_panel_wires_03",
@@ -475,6 +477,13 @@
           "obj": "export/model_export/furniture_lamp_table2_1_off_lod2.obj",
           "vertices": 25,
           "triangles": 32
+        },
+        "fxdest_p6_ceiling_fan_modern_d0": {
+          "xmodel": "export/xmodel/fxdest_p6_ceiling_fan_modern_d0.json",
+          "collLod": 2,
+          "obj": "export/model_export/fxdest_p6_ceiling_fan_modern_d0_lod2.obj",
+          "vertices": 110,
+          "triangles": 304
         },
         "hjk_cafe_coffee_machine01": {
           "xmodel": "export/xmodel/hjk_cafe_coffee_machine01.json",
@@ -1828,7 +1837,7 @@
   "notes": [
     "This is a source mesh, not a baked Recast navmesh. Feed it to a Node/Recast baker and serialize the result for runtime use.",
     "BSP clipmap/physics data is not available in the extracted files; world geometry plus xmodel collLod is therefore an approximation.",
-    "Render-only materials (distant/water/glass/decal/FX/light-like) are excluded using material-name heuristics; inspect the debug navmesh and adjust filters if needed.",
+    "Render-only materials (distant/water/decal/FX/light-like) are excluded using material-name heuristics; glass is kept solid; inspect the debug navmesh and adjust filters if needed.",
     "The browser still needs a capsule collision controller; a navmesh only constrains AI/path queries."
   ]
 }

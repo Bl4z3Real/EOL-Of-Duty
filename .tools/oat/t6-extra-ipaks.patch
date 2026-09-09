@@ -1,0 +1,38 @@
+diff --git a/src/ObjLoading/Game/T6/ObjLoaderT6.cpp b/src/ObjLoading/Game/T6/ObjLoaderT6.cpp
+index 70eb451..79960a9 100644
+--- a/src/ObjLoading/Game/T6/ObjLoaderT6.cpp
++++ b/src/ObjLoading/Game/T6/ObjLoaderT6.cpp
+@@ -1,5 +1,7 @@
+ #include "ObjLoaderT6.h"
+ 
++#include <cstdlib>
++
+ #include "Asset/GlobalAssetPoolsLoader.h"
+ #include "FontIcon/CsvLoaderFontIconT6.h"
+ #include "FontIcon/JsonLoaderFontIconT6.h"
+@@ -215,6 +217,25 @@ namespace T6
+         con::debug("Loading common ipaks for zone \"{}\"", zone.m_name);
+ 
+         LoadIPakForZone(searchPath, "base", zone);
++
++        // Image packs a zone does not declare but whose data it needs: DLC
++        // menu art sits in dlc0.ipak while the UI patch zone only lists the
++        // common packs. OAT_EXTRA_IPAKS is a comma separated list of names.
++        if (const auto* extra = std::getenv("OAT_EXTRA_IPAKS"))
++        {
++            std::string list(extra);
++            size_t start = 0;
++            while (start <= list.size())
++            {
++                const auto end = list.find(',', start);
++                const auto name = list.substr(start, end == std::string::npos ? std::string::npos : end - start);
++                if (!name.empty())
++                    LoadIPakForZone(searchPath, name, zone);
++                if (end == std::string::npos)
++                    break;
++                start = end + 1;
++            }
++        }
+         const auto& languagePrefixes = IGame::GetGameById(GameId::T6)->GetLanguagePrefixes();
+         for (const auto& languagePrefix : languagePrefixes)
+             LoadIPakForZone(searchPath, std::format("{}base", languagePrefix.m_prefix), zone);

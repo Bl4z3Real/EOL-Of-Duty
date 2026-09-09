@@ -1,0 +1,22 @@
+{
+    "$schema": "http://openassettools.dev/schema/xmodel.v1.json",
+    "_game": "t6",
+    "_type": "xmodel",
+    "_version": 2,
+    "collLod": 0,
+    "flags": 2621440,
+    "lightingOriginOffset": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.5
+    },
+    "lightingOriginRange": 0.5,
+    "lods": [
+        {
+            "distance": 58515.7421875,
+            "file": "model_export/mlv/nt_2020_vista_kiosk_yellow_lod0.obj"
+        }
+    ],
+    "rootBoneName": "kiosk_lod0",
+    "type": "rigid"
+}

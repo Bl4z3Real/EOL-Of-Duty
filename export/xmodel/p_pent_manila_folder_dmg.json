@@ -14,7 +14,7 @@
     "lods": [
         {
             "distance": 2000.0,
-            "file": "model_export/p_pent_manila_folder_dmg_lod0.glb"
+            "file": "model_export/p_pent_manila_folder_dmg_lod0.obj"
         }
     ],
     "rootBoneName": "pplane1",

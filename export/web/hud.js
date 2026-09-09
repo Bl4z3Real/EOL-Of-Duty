@@ -7,23 +7,39 @@
 
 const ART = 'ui/hud/';
 
-// World-to-radar calibration for `compass_map_mp_hijacked`. The two authored
-// `minimap_corner` entities bound a 7176-unit square from (-3904, -3600) to
-// (3272, 3576). Entity Y is negated when imported as Three.js world Z, giving
-// the centre below. The yacht's long world-X axis runs vertically in the art.
-export const MAP_CAL = {
-  centerX: -316,
-  centerZ: 12,
-  size: 7176,
-  flipU: 1,
-  flipV: -1,
-  minimapSpan: 1250,
-};
+// World-to-radar calibration. Each map authors two `minimap_corner`
+// entities that bound the square its `compass_map_*` art covers. Entity Y
+// is negated when imported as Three.js world Z. The art's orientation is the
+// engine's, shared by every map: world X runs vertically and world Z
+// horizontally, flipped per the constants below.
+const RADAR_FLIP_U = 1;
+const RADAR_FLIP_V = -1;
 
-export function worldToMinimapUv(x, z) {
+export function calibrationFromCorners(corners, minimapSpan) {
+  const xs = corners.map((corner) => Number(corner[0]));
+  const ys = corners.map((corner) => Number(corner[1]));
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
   return {
-    u: 0.5 + ((z - MAP_CAL.centerZ) * MAP_CAL.flipU) / MAP_CAL.size,
-    v: 0.5 + ((x - MAP_CAL.centerX) * MAP_CAL.flipV) / MAP_CAL.size,
+    centerX: (minX + maxX) / 2,
+    centerZ: 0 - (minY + maxY) / 2 || 0,
+    size: Math.max(maxX - minX, maxY - minY),
+    flipU: RADAR_FLIP_U,
+    flipV: RADAR_FLIP_V,
+    minimapSpan,
+  };
+}
+
+// Hijacked's corners are (-3904, -3600) and (3272, 3576), a 7176-unit
+// square. Kept as the fallback when a map's hints carry no corners.
+export const MAP_CAL = calibrationFromCorners([[-3904, -3600], [3272, 3576]], 1250);
+
+export function worldToMinimapUv(x, z, cal = MAP_CAL) {
+  return {
+    u: 0.5 + ((z - cal.centerZ) * cal.flipU) / cal.size,
+    v: 0.5 + ((x - cal.centerX) * cal.flipV) / cal.size,
   };
 }
 
@@ -48,14 +64,17 @@ function div(className, parent) {
 export class Hud {
   constructor({
     minimap, compass, ammoRow, weaponName, damage,
+    radar = `${ART}compass_map_mp_hijacked.png`, calibration = MAP_CAL,
   }) {
     this.minimap = minimap;
     this.damage = damage;
     this.weaponName = weaponName;
+    this.cal = calibration;
 
     this.rot = div('hud-minimap-rot', minimap);
     this.mapLayer = div('hud-minimap-map', this.rot);
-    this.mapLayer.style.backgroundImage = `url('${ART}compass_map_mp_hijacked.png')`;
+    // A map without exported radar art still gets the spinning frame and pings.
+    if (radar) this.mapLayer.style.backgroundImage = `url('${radar}')`;
     this.arrow = div('hud-minimap-arrow', minimap);
     this.arrow.style.backgroundImage = `url('${ART}compassping_player.png')`;
 
@@ -88,6 +107,11 @@ export class Hud {
 
     this.lastMag = null;
     this.lastReserve = null;
+  }
+
+  /** Swap the radar calibration once the map's hints have loaded. */
+  setCalibration(calibration) {
+    this.cal = calibration;
   }
 
   buildDigit(extraClass) {
@@ -137,18 +161,19 @@ export class Hud {
     // Minimap: the art spins about the player, who stays centred under a
     // fixed up-pointing arrow. `spin` is the clockwise rotation that brings
     // the facing direction to screen-up given the art's axis mapping.
-    const mmScale = VIEW.minimap / MAP_CAL.minimapSpan;
-    const mmSize = MAP_CAL.size * mmScale;
+    const cal = this.cal;
+    const mmScale = VIEW.minimap / cal.minimapSpan;
+    const mmSize = cal.size * mmScale;
     // World facing is (-sin yaw, -cos yaw); art X runs along world Z and art
-    // Y along world X, flipped per MAP_CAL.
-    const artU = -Math.cos(yaw) * MAP_CAL.flipU;
-    const artV = -Math.sin(yaw) * MAP_CAL.flipV;
+    // Y along world X, flipped per the calibration.
+    const artU = -Math.cos(yaw) * cal.flipU;
+    const artV = -Math.sin(yaw) * cal.flipV;
     const spin = -Math.atan2(artU, -artV);
     this.rot.style.transform = `rotate(${spin.toFixed(4)}rad)`;
     this.mapLayer.style.width = `${mmSize}px`;
     this.mapLayer.style.height = `${mmSize}px`;
     this.mapLayer.style.backgroundSize = `${mmSize}px ${mmSize}px`;
-    const mapUv = worldToMinimapUv(x, z);
+    const mapUv = worldToMinimapUv(x, z, cal);
     const px = mapUv.u * mmSize;
     const py = mapUv.v * mmSize;
     this.mapLayer.style.left = `${VIEW.minimap / 2 - px}px`;
@@ -170,8 +195,8 @@ export class Hud {
       }
       ping.style.display = '';
       ping.style.opacity = (1 - age / FIRE_PING_SECONDS).toFixed(3);
-      ping.style.left = `${px + (enemy.z - z) * MAP_CAL.flipU * mmScale - MINIMAP_PING_SIZE / 2}px`;
-      ping.style.top = `${py + (enemy.x - x) * MAP_CAL.flipV * mmScale - MINIMAP_PING_SIZE / 2}px`;
+      ping.style.left = `${px + (enemy.z - z) * cal.flipU * mmScale - MINIMAP_PING_SIZE / 2}px`;
+      ping.style.top = `${py + (enemy.x - x) * cal.flipV * mmScale - MINIMAP_PING_SIZE / 2}px`;
       pingIndex += 1;
     }
     for (; pingIndex < this.pings.length; pingIndex += 1) {
