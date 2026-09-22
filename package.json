@@ -1,12 +1,12 @@
 {
-  "name": "claude-of-duty",
+  "name": "EOL-Of-Duty",
   "version": "1.0.0",
   "private": true,
-  "description": "Claude of Duty: Vibe Slops II \u2014 a browser-based Three.js shooter on the Hijacked map export.",
+  "description": "EOL-Of-Duty — a browser-based Three.js shooter on the Hijacked map export.",
   "scripts": {
     "cloudflare:stage": "node .tools/stage_cloudflare.mjs",
     "cloudflare:dev": "npm run cloudflare:stage && npx wrangler pages dev",
-    "cloudflare:deploy": "npm run cloudflare:stage && npx wrangler pages deploy",
+    "cloudflare:deploy": "npm run cloudflare:stage && npx wrangler pages deploy .work/cloudflare-pages --project-name=EOL-Of-Duty",
     "ai:game": "node .tools/ai-game.mjs",
     "ai:state": "node .tools/ai-game.mjs state",
     "ai:screenshot": "node .tools/ai-game.mjs screenshot",
@@ -32,7 +32,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/luckeyfaraday/claude-of-duty.git"
+    "url": "https://github.com/Bl4z3Real/EOL-Of-Duty.git"
   },
   "keywords": [
     "threejs",
@@ -41,16 +41,15 @@
     "game-ai",
     "recast-navigation"
   ],
-  "author": "Luckey Faraday",
+  "author": "Bl4z3Real",
   "license": "MIT",
   "engines": {
     "node": ">=22"
   },
   "type": "module",
   "bugs": {
-    "url": "https://github.com/luckeyfaraday/claude-of-duty/issues"
+    "url": "https://github.com/Bl4z3Real/EOL-Of-Duty/issues"
   },
-  "homepage": "https://vibeslops.luckeysystems.com/",
   "dependencies": {
     "@netlify/blobs": "^11.0.2",
     "@recast-navigation/core": "0.43.1",
