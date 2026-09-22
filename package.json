@@ -1,16 +1,15 @@
 {
-  "name": "EOL-Of-Duty",
+  "name": "eol-of-duty",
   "version": "1.0.0",
   "private": true,
   "description": "EOL-Of-Duty — a browser-based Three.js shooter on the Hijacked map export.",
   "scripts": {
     "cloudflare:stage": "node .tools/stage_cloudflare.mjs",
     "cloudflare:dev": "npm run cloudflare:stage && npx wrangler pages dev",
-    "cloudflare:deploy": "npm run cloudflare:stage && npx wrangler pages deploy .work/cloudflare-pages --project-name=EOL-Of-Duty",
+    "cloudflare:deploy": "npm run cloudflare:stage && npx wrangler pages deploy .work/cloudflare-pages --project-name=eol-of-duty",
     "ai:game": "node .tools/ai-game.mjs",
     "ai:state": "node .tools/ai-game.mjs state",
     "ai:screenshot": "node .tools/ai-game.mjs screenshot",
-    "ai:test": "node .tools/ai-game.mjs test",
     "ai:enemy": "node .tools/ai-game.mjs enemy-test",
     "ai:life": "node .tools/ai-game.mjs life-test",
     "ai:rigs": "node .tools/weapon-rig-audit.mjs",
