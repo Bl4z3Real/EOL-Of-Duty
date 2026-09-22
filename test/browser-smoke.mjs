@@ -92,7 +92,7 @@ test('Hijacked viewer loads collision, navigation, and walking controls', { time
       // The default class: the M27, the Five-seven, a frag and a smoke.
       loadout: { primary: 'm27', secondary: 'fiveseven', lethal: 'frag', tactical: 'smoke' },
     });
-    assert.match(menu.backdrop, /menu_mp_background_main2\.png/, 'the frontend backdrop should be the extracted plate');
+    assert.match(menu.backdrop, /gradient/, 'the frontend backdrop is an original CSS gradient, not extracted art');
     assert.equal(menu.cardLoaded, 256, 'the Hijacked map card should decode at its authored width');
     assert.equal(menu.barWidth, '100%', 'a finished load fills the bar');
     assert.equal(mapAssetRequests, 1, 'the optimized map must be downloaded exactly once');
