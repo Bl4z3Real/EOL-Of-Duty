@@ -31,6 +31,13 @@
        recolours every panel, button and glow. It matches the HUD. */
     --fe-accent: #7fffc4;
     --fe-ui: 'Bahnschrift', 'DIN Alternate', 'Oswald', system-ui, sans-serif;
+    /* Cut-corner "tactical" panel shape used everywhere instead of the
+       original PNG frame/button art: pure CSS, original design. */
+    --fe-cut: 10px;
+    --fe-clip: polygon(
+      var(--fe-cut) 0, 100% 0, 100% calc(100% - var(--fe-cut)),
+      calc(100% - var(--fe-cut)) 100%, 0 100%, 0 var(--fe-cut)
+    );
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: #05090d; }
@@ -39,35 +46,42 @@
   /* ---------- frontend shell (loading / title / pause / class) ---------- */
   #blocker {
     position: fixed; inset: 0; z-index: 3; display: flex; align-items: center;
-    justify-content: center; padding: 24px; overflow: hidden;
+    justify-content: center; overflow: hidden; overflow-y: auto;
+    padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right))
+      max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left));
     color: #dfe9f2; font: 500 15px/1.5 var(--fe-ui); text-align: center;
     cursor: default; font-stretch: condensed;
   }
   #blocker.ready { cursor: pointer; }
   #blocker > .fe-layer { position: absolute; inset: 0; pointer-events: none; }
 
-  /* The four layers of the original `menu,main`, in the order ui_mp.zone links
-     them: backdrop, scrolling fog, glow, then the content plate. The authored
-     backdrop is hazy and light -- it was drawn to sit behind the game's own
-     dark panels -- so it needs pulling down before the menu text goes over it. */
+  /* Original chrome (no ripped game art): a dark tactical gradient backdrop,
+     a drifting grid, a soft accent glow and a vignette. Four layers, same
+     stacking as before, drawn entirely in CSS. */
   .fe-backdrop {
-    background: #05090d url('ui/menu_mp_background_main2.png') center/cover no-repeat;
-    filter: brightness(.78) contrast(1.14) saturate(.82);
+    background:
+      radial-gradient(120% 90% at 50% 18%, rgba(30, 46, 56, .55) 0%, transparent 60%),
+      linear-gradient(160deg, #0b1720 0%, #060d13 46%, #04090d 100%);
     animation: fe-drift 54s ease-in-out infinite alternate;
   }
   .fe-fog {
-    background: url('ui/bg_fogscrollthin.png') repeat-x 0 50% / auto 72%;
-    mix-blend-mode: screen; opacity: .09;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(127, 255, 196, .35) 0 1px, transparent 1px 96px),
+      repeating-linear-gradient(90deg, rgba(127, 255, 196, .35) 0 1px, transparent 1px 96px);
+    background-size: 100% 100%;
+    mix-blend-mode: screen; opacity: .05;
     animation: fe-fog-scroll 110s linear infinite;
   }
   .fe-fog.slow {
-    background-size: auto 132%; opacity: .05;
+    background-image:
+      repeating-linear-gradient(0deg, rgba(127, 255, 196, .3) 0 1px, transparent 1px 160px),
+      repeating-linear-gradient(90deg, rgba(127, 255, 196, .3) 0 1px, transparent 1px 160px);
+    opacity: .035;
     animation-duration: 190s; animation-direction: reverse;
   }
   .fe-glow {
-    -webkit-mask: url('ui/menu_mp_background_glow.png') center/118% 118% no-repeat;
-    mask: url('ui/menu_mp_background_glow.png') center/118% 118% no-repeat;
-    background: var(--fe-accent); opacity: .1; mix-blend-mode: screen;
+    background: radial-gradient(46% 40% at 50% 40%, var(--fe-accent) 0%, transparent 72%);
+    opacity: .12; mix-blend-mode: screen;
   }
   .fe-vignette {
     background:
@@ -78,7 +92,7 @@
     from { transform: scale(1.06) translate3d(-1%, .4%, 0); }
     to { transform: scale(1.13) translate3d(1%, -1%, 0); }
   }
-  @keyframes fe-fog-scroll { to { background-position: -2048px 50%; } }
+  @keyframes fe-fog-scroll { to { background-position: -192px -192px; } }
 
   .fe-content {
     position: relative; z-index: 1; isolation: isolate;
@@ -130,9 +144,8 @@
   .fe-card { margin: 0; position: relative; padding: 9px; }
   .fe-card::before {
     content: ''; position: absolute; inset: 0; z-index: -1;
-    -webkit-mask: url('ui/menu_mp_lobby_frame_outer.png') center/100% 100% no-repeat;
-    mask: url('ui/menu_mp_lobby_frame_outer.png') center/100% 100% no-repeat;
-    background: rgba(9, 19, 27, .72);
+    clip-path: var(--fe-clip); background: rgba(9, 19, 27, .72);
+    outline: 1px solid rgba(127, 255, 196, .22); outline-offset: -1px;
   }
   .fe-card img { display: block; width: 256px; max-width: 62vw; height: auto; }
   .fe-card figcaption {
@@ -191,15 +204,13 @@
   }
   .fe-btn::before {
     content: ''; position: absolute; inset: 0; z-index: -1;
-    -webkit-mask: url('ui/menu_button_backing.png') center/100% 100% no-repeat;
-    mask: url('ui/menu_button_backing.png') center/100% 100% no-repeat;
-    background: rgba(139, 173, 198, .26); transition: background .12s ease-out;
+    clip-path: var(--fe-clip); background: rgba(139, 173, 198, .26);
+    outline: 1px solid rgba(223, 233, 242, .16); outline-offset: -1px;
+    transition: background .12s ease-out, outline-color .12s ease-out;
   }
   .fe-btn:hover, .fe-btn:focus-visible { color: #04140d; outline: none; }
   .fe-btn:hover::before, .fe-btn:focus-visible::before {
-    -webkit-mask-image: url('ui/menu_button_backing_highlight.png');
-    mask-image: url('ui/menu_button_backing_highlight.png');
-    background: var(--fe-accent);
+    background: var(--fe-accent); outline-color: transparent;
   }
   .fe-btn[data-on="true"]::before { background: rgba(127, 255, 196, .42); }
 
@@ -231,16 +242,14 @@
   }
   .fe-class-tab::before {
     content: ''; position: absolute; inset: 0; z-index: -1;
-    -webkit-mask: url('ui/menu_button_backing.png') center/100% 100% no-repeat;
-    mask: url('ui/menu_button_backing.png') center/100% 100% no-repeat;
-    background: rgba(139, 173, 198, .2); transition: background .12s ease-out;
+    clip-path: var(--fe-clip); background: rgba(139, 173, 198, .2);
+    outline: 1px solid rgba(223, 233, 242, .14); outline-offset: -1px;
+    transition: background .12s ease-out, outline-color .12s ease-out;
   }
   .fe-class-tab:hover::before, .fe-class-tab:focus-visible::before { background: rgba(127, 255, 196, .3); }
   .fe-class-tab[data-on="true"] { color: #04140d; }
   .fe-class-tab[data-on="true"]::before {
-    -webkit-mask-image: url('ui/menu_button_backing_highlight.png');
-    mask-image: url('ui/menu_button_backing_highlight.png');
-    background: var(--fe-accent);
+    background: var(--fe-accent); outline-color: transparent;
   }
   .fe-class-tab small {
     display: block; margin-top: 2px; font-size: 9px; letter-spacing: .16em; opacity: .75;
@@ -263,14 +272,16 @@
   }
   .fe-class-card::before, .fe-class-card::after {
     content: ''; position: absolute; inset: 0; pointer-events: none;
-    -webkit-mask: url('ui/menu_mp_lobby_frame_outer.png') center/100% 100% no-repeat;
-    mask: url('ui/menu_mp_lobby_frame_outer.png') center/100% 100% no-repeat;
+    clip-path: var(--fe-clip);
   }
-  .fe-class-card::before { background: rgba(139, 173, 198, .22); }
+  .fe-class-card::before {
+    background: rgba(139, 173, 198, .22);
+    outline: 1px solid rgba(223, 233, 242, .14); outline-offset: -1px;
+  }
   .fe-class-card::after {
-    -webkit-mask-image: url('ui/menu_select_highlight.png');
-    mask-image: url('ui/menu_select_highlight.png');
-    background: var(--fe-accent); opacity: 0; transition: opacity .12s ease-out;
+    background: transparent; opacity: 0; transition: opacity .12s ease-out;
+    outline: 2px solid var(--fe-accent); outline-offset: -2px;
+    box-shadow: inset 0 0 18px rgba(127, 255, 196, .35);
   }
   .fe-class-card:hover, .fe-class-card:focus-visible { outline: none; }
   .fe-class-card:hover::before, .fe-class-card:focus-visible::before { background: rgba(127, 255, 196, .34); }
@@ -359,6 +370,29 @@
     .fe-class-grid { grid-template-columns: 1fr; overflow-y: auto; }
     .fe-class-card { min-height: 104px; }
     .fe-class-art { height: 80px; }
+  }
+  /* Touch devices: bigger tap targets everywhere in the menu, comfortably
+     above the 44px minimum, plus roomier spacing so nothing needs a
+     precision tap on a phone screen. */
+  body.touch-mode .fe-btn { width: min(300px, 82vw); height: 48px; font: 600 13px/48px var(--fe-ui); font-stretch: condensed; letter-spacing: .24em; text-indent: .24em; text-transform: uppercase; }
+  body.touch-mode .fe-buttons { gap: 12px; }
+  body.touch-mode .fe-class-tab { padding: 12px 14px 13px; min-width: 0; flex: 1 1 auto; }
+  body.touch-mode .fe-class-card { min-height: 118px; cursor: pointer; }
+  body.touch-mode .fe-content { gap: 22px; }
+  body.touch-mode #blocker { padding-top: max(16px, env(safe-area-inset-top)); padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  @media (max-width: 420px) {
+    .fe-wordmark { letter-spacing: .22em; text-indent: .22em; }
+    .fe-sub { letter-spacing: .22em; }
+    body.touch-mode .fe-btn { width: 90vw; }
+  }
+  /* Short/landscape phones: the title screen and pause screen are the two
+     spots most likely to overflow a squat viewport, so let them shrink and
+     scroll instead of clipping the deploy prompt off the bottom. */
+  @media (max-height: 480px) {
+    .fe-content { gap: 14px; }
+    .fe-wordmark { font-size: clamp(18px, 5vw, 30px); }
+    #blocker[data-screen="title"] .fe-start, #blocker[data-screen="pause"] .fe-pause { gap: 12px; }
+    body.touch-mode .fe-btn { height: 40px; font-size: 12px; line-height: 40px; }
   }
   /* Kept as the automation-visible text snapshot (getState().hud) but hidden;
      the visible HUD below is drawn with the game's own art. */
