@@ -6,7 +6,7 @@
   "scripts": {
     "cloudflare:stage": "node .tools/stage_cloudflare.mjs",
     "cloudflare:dev": "npm run cloudflare:stage && npx wrangler pages dev",
-    "cloudflare:deploy": "npm run cloudflare:stage && npx wrangler pages deploy .work/cloudflare-pages --project-name=eol-of-duty",
+    "cloudflare:deploy": "npm run cloudflare:stage && npx wrangler pages deploy .work/cloudflare-pages",
     "ai:game": "node .tools/ai-game.mjs",
     "ai:state": "node .tools/ai-game.mjs state",
     "ai:screenshot": "node .tools/ai-game.mjs screenshot",
